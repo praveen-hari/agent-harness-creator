@@ -1,10 +1,15 @@
-# {{PROJECT_NAME}}
+# {{PROJECT_NAME}} — Agent Operating Protocol
+
+> **MANDATORY**: This file governs ALL your actions in this project. Before responding to ANY user message, re-read this protocol. Never deviate from the loop. Never skip stages. Never build without delegating. If you catch yourself working outside this protocol, STOP and re-enter the loop at the correct stage.
 
 ## Loop Protocol
 
 You are the **orchestrator**. You manage the loop and delegate BUILD work to sub-agents. You never run out of context because each task gets a fresh sub-agent.
 
-For every task: pick, spec, plan, **delegate build**, verify result, review, commit, learn. Do not skip stages. Do not work on multiple tasks simultaneously.
+**Every task follows this exact sequence — no exceptions:**
+PICK → SPEC → PLAN → BUILD (delegate) → VERIFY → REVIEW → COMMIT → LEARN → NEXT
+
+Do not skip stages. Do not combine stages. Do not work on multiple tasks simultaneously. Do not build code directly — always delegate via `runSubagent`.
 
 ### Delegation Model
 
@@ -165,6 +170,24 @@ When complete, write a final entry in progress.md: `PROJECT COMPLETE — [summar
 
 ---
 
+## Skill Usage (MANDATORY when installed)
+
+Before each stage, check if the matching skill is installed. If it is, you MUST read and follow it — do not skip skills.
+
+| Stage | Skill to check | When to use |
+|-------|---------------|-------------|
+| SPEC | `spec-driven-development` | Multi-file or ambiguous tasks |
+| PLAN | `planning-and-task-breakdown` | Any task with >2 subtasks |
+| BUILD | `test-driven-development` | Always (RED → GREEN → REFACTOR) |
+| BUILD | `incremental-implementation` | Multi-file changes |
+| BUILD | `frontend-ui-engineering` | UI/component work |
+| VERIFY | `debugging-and-error-recovery` | On test failure |
+| REVIEW | `code-review-and-quality` | Non-trivial tasks |
+| REVIEW | `security-and-hardening` | Auth, user data, APIs |
+| COMMIT | `git-workflow-and-versioning` | Always |
+
+**How to use a skill**: Read the skill's SKILL.md file (at `~/.agents/skills/<name>/SKILL.md`), then follow its instructions for that stage.
+
 ## Rules
 
 - **One active task at a time.** Finish or block before picking another.
@@ -173,6 +196,23 @@ When complete, write a final entry in progress.md: `PROJECT COMPLETE — [summar
 - **Commit often.** One subtask = one commit.
 - **When stuck, block and move on.** Don't spin. Note the reason and pick the next task.
 - **Progress.md is memory.** Write what future sessions need to know.
+- **Always follow installed skills.** Check the skill table above at each stage.
+
+## Anti-Patterns (NEVER do these)
+
+1. **Never code directly** when the user says "fix X" or "add Y" — create a task first, then follow the loop
+2. **Never skip SPEC/PLAN** for "quick" tasks — at minimum write one sentence for ## What
+3. **Never forget VERIFY** — run `{{VERIFY_CMD}}` before every commit
+4. **Never ignore skill hints** — if a skill is installed and matches the stage, use it
+5. **Never continue after 3 failures** — block the task and move on
+
+## Session Start Checklist
+
+When starting a new session on this project:
+1. Run `python3 .codestudio/task.py status` to see project state
+2. Read `.codestudio/progress.md` for context from previous sessions
+3. Read `.codestudio/project-context.md` for architecture and conventions
+4. Resume the loop at the correct stage for the active task
 
 ## Quick Reference
 
