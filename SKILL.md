@@ -1,0 +1,171 @@
+---
+name: harness-creator
+description: Scans any repository and generates a tailored agent harness with a loop-based task protocol. Works on empty repos (interview mode), existing repos (auto-detection), and re-runs safely (upgrade mode).
+---
+
+# Harness Creator
+
+Generate a `.codestudio/` harness that turns any project into an agent-friendly workspace. The harness provides a loop protocol: pick a task, spec it, plan it, build it, verify, review, commit, learn, repeat.
+
+## When to Use
+
+- Starting work on a new project
+- Onboarding to an existing codebase
+- Setting up task management for agent sessions
+- The user says "set up harness", "create harness", "bootstrap project", or "initialize project tasks"
+- Re-running to upgrade an existing harness
+
+## Step 1 — SCAN
+
+Scan the repository to detect project characteristics. Read the reference document for detection rules:
+
+```
+read_file: ~/.agents/skills/harness-creator/references/detection-rules.md
+```
+
+Then inspect the project root:
+
+1. **List root directory** to find build files, configs, source directories
+2. **Detect language/framework** from manifest files (package.json, requirements.txt, Cargo.toml, etc.)
+3. **Detect test framework** for the verify command
+4. **Count source files** to decide reviewer threshold
+5. **Check for .git** to enable/disable COMMIT stage
+6. **Scan for security signals** (auth, JWT, crypto patterns)
+7. **Check for UI files** (tsx, jsx, vue, svelte, components/)
+8. **Check for existing `.codestudio/`** → upgrade mode
+
+Record findings:
+- `PROJECT_NAME`: directory name or package name
+- `VERIFY_CMD`: detected or "echo 'no tests yet'"
+- `HAS_GIT`: true/false
+- `SECURITY_FLAGS`: list of detected patterns
+- `UI_PROJECT`: true/false
+- `SOURCE_COUNT`: number of source files
+- `UPGRADE_MODE`: true if `.codestudio/` exists
+
+## Step 2 — INTERVIEW
+
+**If empty repo** (no source files detected):
+
+Read the `interview-me` skill if available:
+```
+read_file: ~/.agents/skills/interview-me/SKILL.md
+```
+
+Ask the user one question at a time to determine:
+1. What are you building? (product description)
+2. Who is it for? (users, developers, internal)
+3. What tech stack? (this sets VERIFY_CMD)
+4. What's the first feature to build?
+
+Use answers to populate PROJECT_NAME, VERIFY_CMD, and generate initial tasks.
+
+**If existing repo**: Confirm detected settings with the user:
+- "I detected [Node.js + Jest]. Verify command: `npm test`. Correct?"
+- Ask for PROJECT_NAME if not obvious from package.json
+
+**If upgrade mode**: Report what will be updated:
+- "Existing harness found. I'll update task.py and instructions. Your tasks and progress will be preserved."
+
+## Step 3 — GENERATE
+
+Create the `.codestudio/` directory with all harness files.
+
+### Read templates from:
+```
+~/.agents/skills/harness-creator/templates/
+```
+
+### Files to generate:
+
+#### Always generate:
+
+1. **`.codestudio/task.py`** — from `task.py.tmpl`
+   Copy as-is. This is the task manager script.
+
+2. **`.codestudio/codestudio-instructions.md`** — from `codestudio-instructions.md.tmpl`
+   Replace template variables:
+   - `{{PROJECT_NAME}}` → detected or user-provided name
+   - `{{VERIFY_CMD}}` → detected or user-provided command
+   
+   Add security and UI notes if flags were detected (see detection-rules.md).
+   
+   Remove references to skills that are not installed at `~/.agents/skills/<name>/SKILL.md`.
+
+3. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
+   Empty array for new projects. **Preserve existing if upgrade mode.**
+
+4. **`.codestudio/progress.md`** — from `progress.md.tmpl`
+   Replace `{{PROJECT_NAME}}`. **Preserve existing if upgrade mode.**
+
+#### Conditionally generate:
+
+5. **`.codestudio/reviewer.agent.md`** — from `reviewer.agent.md.tmpl`
+   Only if: source file count > 10, or security flags detected.
+   Remove references to unavailable skills.
+
+### Upgrade mode behavior:
+
+| File | Action |
+|------|--------|
+| `task.py` | Overwrite (latest version) |
+| `codestudio-instructions.md` | Overwrite (re-detect settings) |
+| `reviewer.agent.md` | Overwrite if applicable |
+| `tasks/index.json` | **PRESERVE** |
+| `tasks/*.md` | **PRESERVE** |
+| `progress.md` | **PRESERVE** |
+| `archive/` | **PRESERVE** |
+
+## Step 4 — SEED TASKS
+
+**For empty repos**: Generate 3-5 initial tasks from interview answers.
+Example for a new web app:
+```
+python3 .codestudio/task.py add "Initialize project with [framework]"
+python3 .codestudio/task.py add "Set up dev environment and CI" --needs T-001
+python3 .codestudio/task.py add "Implement [first feature]" --needs T-001
+python3 .codestudio/task.py add "Add authentication" --needs T-001 --backlog
+```
+
+**For existing repos with issues/TODO**: Scan for TODO comments, open issues, or README roadmap items and convert to tasks.
+
+**For upgrades**: Do not add tasks. Existing task list is authoritative.
+
+## Step 5 — VERIFY HARNESS
+
+Run a smoke test:
+```bash
+python3 .codestudio/task.py status
+```
+
+Expected output: PROJECT STATUS with counts. If tasks were seeded, they should appear.
+
+Also verify:
+- `codestudio-instructions.md` has correct verify command
+- `task.py` is executable (suggest `chmod +x .codestudio/task.py` on Unix)
+- `.codestudio/` is in `.gitignore` (or not, depending on team preference — ask user)
+
+## Output
+
+After generation, report:
+```
+Harness created at .codestudio/
+  ├── task.py           — task manager (11 commands)
+  ├── codestudio-instructions.md — loop protocol for {{PROJECT_NAME}}
+  ├── tasks/index.json  — task index (N tasks seeded)
+  ├── progress.md       — session memory
+  └── reviewer.agent.md — code reviewer (if generated)
+
+Detected: [language], verify: [command]
+Skills available: [list of installed skills]
+
+To start working: Run `python3 .codestudio/task.py next`
+```
+
+## Reference Documents
+
+For detailed information on specific aspects:
+
+- **Loop protocol**: `~/.agents/skills/harness-creator/references/loop-protocol.md` — how the 9-stage loop works, task state machine, constraints
+- **Stages catalog**: `~/.agents/skills/harness-creator/references/stages-catalog.md` — which SDLC skills map to which stages
+- **Detection rules**: `~/.agents/skills/harness-creator/references/detection-rules.md` — how repo scanning works, signal-to-config mapping

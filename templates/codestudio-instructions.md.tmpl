@@ -1,0 +1,128 @@
+# {{PROJECT_NAME}}
+
+## Loop Protocol
+
+You operate in a continuous loop. For every task: pick, spec, plan, build, verify, review, commit, learn. Do not skip stages. Do not work on multiple tasks simultaneously.
+
+### How to Run Task Commands
+
+```
+python3 .codestudio/task.py <command>
+```
+
+### 1. PICK
+
+Run `python3 .codestudio/task.py next` to get the next task.
+Read the task file at `.codestudio/tasks/<ID>.md`.
+If the file is new, proceed to SPEC. If it has ## Plan with unchecked items, resume BUILD.
+
+### 2. SPEC
+
+Write ## What in the task file if not already present.
+Define: what to build, scope boundaries, and acceptance criteria (testable statements).
+For trivial tasks (one file, < 20 lines), a single sentence is enough.
+
+If the `spec-driven-development` skill is available and the task is complex (multi-file, unclear scope, or ambiguous requirements), follow that skill for a structured specification process.
+
+### 3. PLAN
+
+Write ## Plan in the task file with subtask checkboxes.
+Order subtasks by dependency. Each subtask should be completable in one commit.
+For trivial tasks, skip this stage.
+
+If the `planning-and-task-breakdown` skill is available, follow it for structured decomposition with vertical slicing.
+
+### 4. BUILD
+
+Implement one subtask at a time. Check its box in ## Plan when done.
+Write tests alongside or before the code.
+
+If the `test-driven-development` skill is available, follow it: RED → GREEN → REFACTOR.
+If the `incremental-implementation` skill is available, follow it for thin vertical slices.
+
+Context-specific skills (use if available):
+- UI work → `frontend-ui-engineering` skill
+- API work → `api-and-interface-design` skill
+
+### 5. VERIFY
+
+Run: `{{VERIFY_CMD}}`
+All checks must pass before proceeding.
+
+If verify fails:
+1. Read the error output carefully
+2. Fix the root cause, not the symptom
+3. Re-run verify
+4. After 3 failed attempts, write the issue in ## Log and run `python3 .codestudio/task.py block "reason"`
+
+If the `debugging-and-error-recovery` skill is available, follow it on failure: stop, preserve evidence, triage systematically.
+
+### 6. REVIEW
+
+For non-trivial tasks, review the completed work before committing.
+Write ## Review in the task file with findings.
+
+Self-review checklist:
+- Does the code match ## What?
+- Are there obvious bugs, missing edge cases, or untested paths?
+- Is user input sanitized? Are secrets hardcoded? Is auth enforced?
+
+If ## Review contains issues:
+1. Run `python3 .codestudio/task.py review` to mark the task for review
+2. Fix all issues
+3. Run `python3 .codestudio/task.py reject` to return to active, fix, then `python3 .codestudio/task.py review` again
+4. When clean: `python3 .codestudio/task.py approve`
+
+If the `code-review-and-quality` skill is available, follow its 5-axis review.
+If the `security-and-hardening` skill is available and the task touches auth, user data, or external APIs, follow its checklist.
+
+If @reviewer agent exists, invoke it for an independent review.
+
+### 7. COMMIT
+
+Commit after each completed subtask. Atomic commits with conventional messages.
+Format: `type(scope): description`
+
+Examples:
+- `feat(auth): add password reset endpoint`
+- `fix(header): constrain width on mobile`
+- `test(auth): add reset token expiry tests`
+
+If the `git-workflow-and-versioning` skill is available, follow it.
+
+### 8. LEARN
+
+After completing the task:
+1. Write ## Log in the task file: decisions made, problems hit, what worked.
+2. Append a one-line summary to `.codestudio/progress.md`.
+3. Run `python3 .codestudio/task.py done` (or `approve` if coming from review).
+
+### 9. NEXT
+
+Return to PICK. Continue until `task next` says "ALL TASKS DONE."
+
+---
+
+## Rules
+
+- **One active task at a time.** Finish or block before picking another.
+- **Never edit `.codestudio/tasks/index.json` directly.** Use `task.py` commands.
+- **Task files are yours.** Write freely in `.codestudio/tasks/<ID>.md`.
+- **Commit often.** One subtask = one commit.
+- **When stuck, block and move on.** Don't spin. Note the reason and pick the next task.
+- **Progress.md is memory.** Write what future sessions need to know.
+
+## Quick Reference
+
+```
+python3 .codestudio/task.py next              # get next task
+python3 .codestudio/task.py done              # mark complete
+python3 .codestudio/task.py block "reason"    # can't proceed
+python3 .codestudio/task.py unblock T-XXX     # try again
+python3 .codestudio/task.py review            # submit for review
+python3 .codestudio/task.py approve           # review passed
+python3 .codestudio/task.py reject            # review failed, rework
+python3 .codestudio/task.py add "title"       # new task
+python3 .codestudio/task.py status            # project summary
+python3 .codestudio/task.py archive           # clean up done tasks
+```

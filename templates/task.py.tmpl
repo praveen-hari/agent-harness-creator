@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""Task manager for agent harness loop.
+
+Manages task state in index.json so the agent never edits JSON directly.
+Agent creates task content in markdown files. This script manages status transitions.
+
+Usage:
+    python3 .codestudio/task.py next
+    python3 .codestudio/task.py done
+    python3 .codestudio/task.py block "reason"
+    python3 .codestudio/task.py unblock T-003
+    python3 .codestudio/task.py review
+    python3 .codestudio/task.py approve
+    python3 .codestudio/task.py reject
+    python3 .codestudio/task.py add "title" [--needs T-001] [--backlog]
+    python3 .codestudio/task.py status
+    python3 .codestudio/task.py archive
+"""
+
+import json
+import os
+import shutil
+import sys
+from datetime import date
+
+CODESTUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+TASKS_DIR = os.path.join(CODESTUDIO_DIR, "tasks")
+INDEX_FILE = os.path.join(TASKS_DIR, "index.json")
+ARCHIVE_DIR = os.path.join(CODESTUDIO_DIR, "archive")
+
+
+def load_index():
+    if not os.path.exists(INDEX_FILE):
+        return []
+    with open(INDEX_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_index(tasks):
+    os.makedirs(TASKS_DIR, exist_ok=True)
+    with open(INDEX_FILE, "w") as f:
+        json.dump(tasks, f, indent=2)
+        f.write("\n")
+
+
+def next_id(tasks):
+    if not tasks:
+        return "T-001"
+    max_num = 0
+    for t in tasks:
+        try:
+            num = int(t["id"].split("-")[1])
+            if num > max_num:
+                max_num = num
+        except (IndexError, ValueError):
+            pass
+    return f"T-{max_num + 1:03d}"
+
+
+def get_active(tasks):
+    for t in tasks:
+        if t["status"] == "active":
+            return t
+    return None
+
+
+def get_by_id(tasks, task_id):
+    for t in tasks:
+        if t["id"] == task_id:
+            return t
+    return None
+
+
+# ── Commands ──────────────────────────────────────────────────────────
+
+
+def cmd_next(tasks):
+    """Pick next eligible todo → set active. Only 1 active at a time."""
+    active = get_active(tasks)
+    if active:
+        task_file = os.path.join(TASKS_DIR, f"{active['id']}.md")
+        print(f"ACTIVE: {active['id']} — {active['title']}")
+        if os.path.exists(task_file):
+            print(f"FILE:   .codestudio/tasks/{active['id']}.md")
+        return
+
+    done_ids = {t["id"] for t in tasks if t["status"] == "done"}
+
+    for t in tasks:
+        if t["status"] != "todo":
+            continue
+        needs = t.get("needs", [])
+        if all(n in done_ids for n in needs):
+            t["status"] = "active"
+            save_index(tasks)
+
+            task_file = os.path.join(TASKS_DIR, f"{t['id']}.md")
+            if not os.path.exists(task_file):
+                with open(task_file, "w") as f:
+                    f.write(f"# {t['title']}\n\n## What\n\n")
+                print(f"PICKED: {t['id']} — {t['title']}")
+                print(f"FILE:   .codestudio/tasks/{t['id']}.md (created)")
+            else:
+                print(f"PICKED: {t['id']} — {t['title']}")
+                print(f"FILE:   .codestudio/tasks/{t['id']}.md")
+            return
+
+    # Check if any tasks are blocked or have unmet dependencies
+    blocked = [t for t in tasks if t["status"] == "blocked"]
+    waiting = [t for t in tasks if t["status"] == "todo" and not all(
+        n in done_ids for n in t.get("needs", [])
+    )]
+
+    if blocked:
+        print(f"NO ELIGIBLE TASKS. {len(blocked)} blocked:")
+        for t in blocked:
+            print(f"  {t['id']} — {t['title']}")
+    elif waiting:
+        print(f"NO ELIGIBLE TASKS. {len(waiting)} waiting on dependencies:")
+        for t in waiting:
+            unmet = [n for n in t.get("needs", []) if n not in done_ids]
+            print(f"  {t['id']} — needs: {', '.join(unmet)}")
+    else:
+        backlog = [t for t in tasks if t["status"] == "backlog"]
+        if backlog:
+            print(f"ALL TASKS DONE. {len(backlog)} items in backlog.")
+            print("Promote backlog items with: task add \"title\" (from backlog ideas)")
+        else:
+            print("ALL TASKS DONE. No backlog items.")
+
+
+def cmd_done(tasks):
+    """Active → done."""
+    active = get_active(tasks)
+    if not active:
+        print("ERROR: No active task. Run 'task next' first.")
+        sys.exit(1)
+    active["status"] = "done"
+    save_index(tasks)
+    print(f"DONE: {active['id']} — {active['title']}")
+
+
+def cmd_block(tasks, reason):
+    """Active → blocked."""
+    active = get_active(tasks)
+    if not active:
+        print("ERROR: No active task.")
+        sys.exit(1)
+    active["status"] = "blocked"
+    save_index(tasks)
+    print(f"BLOCKED: {active['id']} — {active['title']}")
+    print(f"REASON: {reason}")
+    print(f"Add details to .codestudio/tasks/{active['id']}.md under ## Log")
+
+
+def cmd_unblock(tasks, task_id):
+    """Blocked → todo."""
+    task = get_by_id(tasks, task_id)
+    if not task:
+        print(f"ERROR: Task {task_id} not found.")
+        sys.exit(1)
+    if task["status"] != "blocked":
+        print(f"ERROR: {task_id} is not blocked (status: {task['status']})")
+        sys.exit(1)
+    task["status"] = "todo"
+    save_index(tasks)
+    print(f"UNBLOCKED: {task_id} — {task['title']}")
+
+
+def cmd_review(tasks):
+    """Active → review."""
+    active = get_active(tasks)
+    if not active:
+        print("ERROR: No active task.")
+        sys.exit(1)
+    active["status"] = "review"
+    save_index(tasks)
+    print(f"IN REVIEW: {active['id']} — {active['title']}")
+    print(f"Write ## Review in .codestudio/tasks/{active['id']}.md")
+
+
+def cmd_approve(tasks):
+    """Review → done."""
+    review_task = None
+    for t in tasks:
+        if t["status"] == "review":
+            review_task = t
+            break
+    if not review_task:
+        print("ERROR: No task in review.")
+        sys.exit(1)
+    review_task["status"] = "done"
+    save_index(tasks)
+    print(f"APPROVED: {review_task['id']} — {review_task['title']}")
+
+
+def cmd_reject(tasks):
+    """Review → active (rework)."""
+    review_task = None
+    for t in tasks:
+        if t["status"] == "review":
+            review_task = t
+            break
+    if not review_task:
+        print("ERROR: No task in review.")
+        sys.exit(1)
+    review_task["status"] = "active"
+    save_index(tasks)
+    print(f"REWORK: {review_task['id']} — {review_task['title']}")
+    print(f"Fix issues in ## Review, then 'task review' again.")
+
+
+def cmd_add(tasks, title, needs=None, backlog=False):
+    """Add a new task."""
+    tid = next_id(tasks)
+    task = {
+        "id": tid,
+        "title": title,
+        "status": "backlog" if backlog else "todo",
+        "needs": needs or []
+    }
+    tasks.append(task)
+    save_index(tasks)
+    status_label = "BACKLOG" if backlog else "TODO"
+    print(f"ADDED [{status_label}]: {tid} — {title}")
+    if needs:
+        print(f"DEPENDS ON: {', '.join(needs)}")
+
+
+def cmd_status(tasks):
+    """Print summary counts."""
+    counts = {}
+    for t in tasks:
+        s = t["status"]
+        counts[s] = counts.get(s, 0) + 1
+    total = len(tasks)
+
+    print("PROJECT STATUS")
+    print(f"  done:        {counts.get('done', 0)}")
+    print(f"  active:      {counts.get('active', 0)}")
+    print(f"  review:      {counts.get('review', 0)}")
+    print(f"  todo:        {counts.get('todo', 0)}")
+    print(f"  blocked:     {counts.get('blocked', 0)}")
+    print(f"  backlog:     {counts.get('backlog', 0)}")
+    print(f"  ─────────────────")
+    print(f"  total:       {total}")
+
+    if total > 0:
+        done_count = counts.get('done', 0)
+        active_count = total - counts.get('backlog', 0)
+        if active_count > 0:
+            pct = int((done_count / active_count) * 100)
+            print(f"  progress:    {pct}% (excluding backlog)")
+
+
+def cmd_list(tasks, filter_status=None):
+    """Print task list."""
+    for t in tasks:
+        if filter_status and t["status"] != filter_status:
+            continue
+        status_icon = {
+            "done": "✅", "active": "🔄", "review": "👀",
+            "todo": "⏳", "blocked": "🚫", "backlog": "📋"
+        }.get(t["status"], "?")
+        needs_str = f" (needs: {', '.join(t['needs'])})" if t.get("needs") else ""
+        print(f"  {status_icon} {t['id']} — {t['title']}{needs_str}")
+
+
+def cmd_archive(tasks):
+    """Move done tasks to archive."""
+    done_tasks = [t for t in tasks if t["status"] == "done"]
+    if not done_tasks:
+        print("Nothing to archive.")
+        return
+
+    archive_name = date.today().isoformat()
+    archive_path = os.path.join(ARCHIVE_DIR, archive_name)
+    archive_tasks_path = os.path.join(archive_path, "tasks")
+    os.makedirs(archive_tasks_path, exist_ok=True)
+
+    # Save archived index
+    archive_index = os.path.join(archive_path, "index.json")
+    with open(archive_index, "w") as f:
+        json.dump(done_tasks, f, indent=2)
+        f.write("\n")
+
+    # Move task files
+    moved = 0
+    for t in done_tasks:
+        src = os.path.join(TASKS_DIR, f"{t['id']}.md")
+        dst = os.path.join(archive_tasks_path, f"{t['id']}.md")
+        if os.path.exists(src):
+            shutil.move(src, dst)
+            moved += 1
+
+    # Remove done from active index
+    remaining = [t for t in tasks if t["status"] != "done"]
+    save_index(remaining)
+
+    print(f"ARCHIVED: {len(done_tasks)} tasks → .codestudio/archive/{archive_name}/")
+    print(f"  Files moved: {moved}")
+    print(f"  Remaining:   {len(remaining)} tasks")
+
+
+def cmd_info(tasks, task_id):
+    """Print details of a specific task."""
+    task = get_by_id(tasks, task_id)
+    if not task:
+        print(f"ERROR: Task {task_id} not found.")
+        sys.exit(1)
+
+    print(f"TASK:    {task['id']} — {task['title']}")
+    print(f"STATUS:  {task['status']}")
+    if task.get("needs"):
+        print(f"NEEDS:   {', '.join(task['needs'])}")
+    task_file = os.path.join(TASKS_DIR, f"{task['id']}.md")
+    if os.path.exists(task_file):
+        print(f"FILE:    .codestudio/tasks/{task['id']}.md")
+    else:
+        print(f"FILE:    (not yet created)")
+
+
+# ── CLI ───────────────────────────────────────────────────────────────
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: task <command> [args]")
+        print("Commands: next, done, block, unblock, review, approve, reject, add, status, list, archive, info")
+        sys.exit(1)
+
+    tasks = load_index()
+    cmd = sys.argv[1]
+
+    if cmd == "next":
+        cmd_next(tasks)
+    elif cmd == "done":
+        cmd_done(tasks)
+    elif cmd == "block":
+        reason = sys.argv[2] if len(sys.argv) > 2 else "no reason given"
+        cmd_block(tasks, reason)
+    elif cmd == "unblock":
+        if len(sys.argv) < 3:
+            print("Usage: task unblock T-XXX")
+            sys.exit(1)
+        cmd_unblock(tasks, sys.argv[2])
+    elif cmd == "review":
+        cmd_review(tasks)
+    elif cmd == "approve":
+        cmd_approve(tasks)
+    elif cmd == "reject":
+        cmd_reject(tasks)
+    elif cmd == "add":
+        if len(sys.argv) < 3:
+            print("Usage: task add \"title\" [--needs T-001] [--backlog]")
+            sys.exit(1)
+        title = sys.argv[2]
+        needs = []
+        backlog = False
+        i = 3
+        while i < len(sys.argv):
+            if sys.argv[i] == "--needs" and i + 1 < len(sys.argv):
+                needs.append(sys.argv[i + 1])
+                i += 2
+            elif sys.argv[i] == "--backlog":
+                backlog = True
+                i += 1
+            else:
+                i += 1
+        cmd_add(tasks, title, needs, backlog)
+    elif cmd == "status":
+        cmd_status(tasks)
+    elif cmd == "list":
+        filter_status = None
+        if len(sys.argv) > 2:
+            filter_status = sys.argv[2].lstrip("-")
+        cmd_list(tasks, filter_status)
+    elif cmd == "archive":
+        cmd_archive(tasks)
+    elif cmd == "info":
+        if len(sys.argv) < 3:
+            print("Usage: task info T-XXX")
+            sys.exit(1)
+        cmd_info(tasks, sys.argv[2])
+    else:
+        print(f"Unknown command: {cmd}")
+        print("Commands: next, done, block, unblock, review, approve, reject, add, status, list, archive, info")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
