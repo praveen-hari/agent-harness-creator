@@ -1,13 +1,49 @@
 # Loop Protocol
 
-The harness operates as a continuous loop over a task list. The agent picks one task, completes it through all stages, commits, and picks the next. This continues until all tasks are done.
+The harness operates as a continuous loop over a task list using an **orchestrator/sub-agent** model. The orchestrator manages task state, specs, plans, and reviews. Sub-agents handle the BUILD stage with fresh context windows — enabling the loop to run across 50+ tasks without context exhaustion.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│  ORCHESTRATOR (main agent)                          │
+│  • Reads task files (~5KB per iteration)            │
+│  • Runs task.py commands                            │
+│  • Writes specs, plans, reviews                     │
+│  • Delegates BUILD to sub-agents                    │
+│  • Decides when project is complete                 │
+│                                                     │
+│  PICK → SPEC → PLAN ─┐                             │
+│    ↑                  │                             │
+│    │    ┌─────────────▼──────────────┐              │
+│    │    │  SUB-AGENT (fresh context) │              │
+│    │    │  • Full context window     │              │
+│    │    │  • Implements ## Plan      │              │
+│    │    │  • Runs verify command     │              │
+│    │    │  • Returns DONE or BLOCKED │              │
+│    │    └─────────────┬──────────────┘              │
+│    │                  │                             │
+│    │    REVIEW ← VERIFY ←┘                          │
+│    │      │                                         │
+│    │    COMMIT → LEARN → NEXT                       │
+│    │                       │                        │
+│    └───────────────────────┘                        │
+└─────────────────────────────────────────────────────┘
+```
+
+### Why Sub-Agents?
+
+- **No context exhaustion**: Each task gets a fresh context window
+- **Orchestrator stays lean**: ~5KB per loop iteration (task file + script output)
+- **Parallel-ready**: Multiple sub-agents could run concurrently (future)
+- **Failure isolation**: A sub-agent crash doesn't lose orchestrator state
 
 ## Loop Stages
 
 ```
-PICK → SPEC → PLAN → BUILD → VERIFY → REVIEW → COMMIT → LEARN → NEXT
-  ↑                                                              │
-  └──────────────────────────────────────────────────────────────┘
+PICK → SPEC → PLAN → BUILD(sub-agent) → VERIFY → REVIEW → COMMIT → LEARN → NEXT
+  ↑                                                                          │
+  └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### PICK
@@ -38,7 +74,41 @@ Atomic commit with conventional message format. One subtask = one commit. Keep t
 Record what happened: decisions, problems, solutions. Write to `## Log` in the task file and append to `progress.md`. This creates memory across sessions.
 
 ### NEXT
-Return to PICK. The loop continues until `task next` reports all tasks complete.
+Return to PICK. The loop continues autonomously.
+
+## Autonomous Completion
+
+The orchestrator decides when the project is done. It does not stop at an arbitrary point.
+
+### Auto-Promote Backlog
+
+When all `todo` tasks are done but `backlog` items remain:
+1. Evaluate each backlog item against the project goals
+2. If needed to meet the original spec → promote to `todo`
+3. If nice-to-have and spec is already met → skip
+4. Continue the loop with promoted tasks
+
+### Task Discovery
+
+During BUILD and REVIEW, new work may be discovered:
+- Missing error handling → `task add "Add error handling for X" --needs T-current`
+- Untested edge case → `task add "Test edge case Y"`
+- Dependency gap → `task add "Install/configure Z" --needs T-current`
+
+The orchestrator adds these tasks and the loop picks them up naturally.
+
+### Completion Criteria
+
+The project is complete when ALL of:
+1. All `todo` tasks are `done`
+2. All `backlog` items evaluated (promoted or deliberately skipped)
+3. Verify command passes on the full project
+4. The original goals (from first task spec or progress.md) are satisfied
+
+The orchestrator writes a final entry in progress.md:
+```
+PROJECT COMPLETE — [summary of what was built, key decisions, final state]
+```
 
 ## State Machine
 
@@ -81,3 +151,6 @@ Cross-references between tasks use: "See T-001".
 3. **Commit per subtask.** Keeps history atomic and bisectable.
 4. **Max 3 verify retries.** Block and move on if stuck.
 5. **Progress.md is memory.** Write what future sessions need to know.
+6. **BUILD is delegated.** Orchestrator never builds directly — use `runSubagent`.
+7. **Loop until complete.** Don't stop at "all todo done" — evaluate backlog and project goals.
+8. **Sub-agents don't run task.py.** Only the orchestrator manages task state.

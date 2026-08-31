@@ -2,7 +2,37 @@
 
 ## Loop Protocol
 
-You operate in a continuous loop. For every task: pick, spec, plan, build, verify, review, commit, learn. Do not skip stages. Do not work on multiple tasks simultaneously.
+You are the **orchestrator**. You manage the loop and delegate BUILD work to sub-agents. You never run out of context because each task gets a fresh sub-agent.
+
+For every task: pick, spec, plan, **delegate build**, verify result, review, commit, learn. Do not skip stages. Do not work on multiple tasks simultaneously.
+
+### Delegation Model
+
+You (orchestrator) stay lightweight — read task files, run `task.py` commands, and delegate.
+For each task's BUILD stage, launch a sub-agent with `runSubagent`:
+
+```
+runSubagent(
+  prompt: "You are working on {{PROJECT_NAME}}.
+    Task: <paste ## What from task file>
+    Plan: <paste ## Plan from task file>
+    Verify command: {{VERIFY_CMD}}
+
+    Instructions:
+    1. Read the codebase to understand the project structure
+    2. Implement each subtask in ## Plan, checking boxes as you go
+    3. Run `{{VERIFY_CMD}}` after each subtask — all tests must pass
+    4. When all subtasks pass, report DONE with a summary of changes
+    5. If stuck after 3 attempts on any step, report BLOCKED with the reason
+
+    Do NOT run task.py commands — the orchestrator manages task state.",
+  description: "Build T-XXX: <title>"
+)
+```
+
+After the sub-agent returns:
+- **DONE** → proceed to REVIEW
+- **BLOCKED** → run `task.py block "reason"`, pick next task
 
 ### How to Run Task Commands
 
@@ -32,17 +62,20 @@ For trivial tasks, skip this stage.
 
 If the `planning-and-task-breakdown` skill is available, follow it for structured decomposition with vertical slicing.
 
-### 4. BUILD
+### 4. BUILD (delegated to sub-agent)
 
-Implement one subtask at a time. Check its box in ## Plan when done.
-Write tests alongside or before the code.
+**Do not build directly.** Delegate to a sub-agent using `runSubagent` (see Delegation Model above).
 
-If the `test-driven-development` skill is available, follow it: RED → GREEN → REFACTOR.
-If the `incremental-implementation` skill is available, follow it for thin vertical slices.
+Include in the sub-agent prompt:
+- The full ## What and ## Plan from the task file
+- The verify command: `{{VERIFY_CMD}}`
+- Relevant skill hints (if installed):
+  - `test-driven-development`: RED → GREEN → REFACTOR
+  - `incremental-implementation`: thin vertical slices
+  - UI work → `frontend-ui-engineering` skill
+  - API work → `api-and-interface-design` skill
 
-Context-specific skills (use if available):
-- UI work → `frontend-ui-engineering` skill
-- API work → `api-and-interface-design` skill
+The sub-agent builds and verifies. You handle the result.
 
 ### 5. VERIFY
 
@@ -99,7 +132,24 @@ After completing the task:
 
 ### 9. NEXT
 
-Return to PICK. Continue until `task next` says "ALL TASKS DONE."
+Return to PICK. The loop continues autonomously:
+
+**Auto-promote backlog**: When `task next` says "ALL TASKS DONE" but backlog items remain:
+1. Run `python3 .codestudio/task.py list backlog` to see backlog items
+2. Evaluate each against the project goals in progress.md
+3. If the item is needed to fulfill the original spec, add it as todo: `python3 .codestudio/task.py add "title"`
+4. If it's a nice-to-have and the spec is already met, skip it
+5. Continue the loop
+
+**Discover new tasks**: During BUILD, if the sub-agent or review reveals missing work (error handling, edge cases, missing tests), add tasks: `python3 .codestudio/task.py add "title" --needs T-XXX`
+
+**Completion criteria**: The project is complete when:
+1. All `todo` tasks are done
+2. All `backlog` items have been evaluated (promoted or deliberately skipped)
+3. `{{VERIFY_CMD}}` passes on the full project
+4. The original spec/goals from the first task or progress.md are satisfied
+
+When complete, write a final entry in progress.md: `PROJECT COMPLETE — [summary of what was built]`
 
 ---
 

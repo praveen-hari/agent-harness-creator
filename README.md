@@ -27,23 +27,33 @@ your-project/
 
 ## The Loop
 
-The agent operates in a continuous loop for every task:
+The agent operates as an **orchestrator** that delegates BUILD work to **sub-agents** via `runSubagent`. This means:
+- The orchestrator never exhausts its context window — it stays lean (~5KB per iteration)
+- Each task gets a fresh sub-agent with a full context window
+- The loop can run across 50+ tasks in a single session
 
 ```
-PICK → SPEC → PLAN → BUILD → VERIFY → REVIEW → COMMIT → LEARN → NEXT
+PICK → SPEC → PLAN → BUILD (sub-agent) → VERIFY → REVIEW → COMMIT → LEARN → NEXT
 ```
 
-| Stage | What Happens |
-|-------|-------------|
-| **PICK** | `task.py next` — get the next eligible task (dependency-aware) |
-| **SPEC** | Write acceptance criteria in the task file |
-| **PLAN** | Break into subtask checkboxes |
-| **BUILD** | Implement one subtask at a time, write tests |
-| **VERIFY** | Run project tests. Max 3 retries, then block |
-| **REVIEW** | Self-review or delegate to reviewer agent |
-| **COMMIT** | Atomic commit with conventional message |
-| **LEARN** | Log decisions and update progress.md |
-| **NEXT** | Loop back to PICK |
+| Stage | Who | What Happens |
+|-------|-----|-------------|
+| **PICK** | Orchestrator | `task.py next` — get the next eligible task (dependency-aware) |
+| **SPEC** | Orchestrator | Write acceptance criteria in the task file |
+| **PLAN** | Orchestrator | Break into subtask checkboxes |
+| **BUILD** | **Sub-agent** | Implement subtasks, run tests — fresh context per task |
+| **VERIFY** | Sub-agent | Run project tests. Max 3 retries, then report blocked |
+| **REVIEW** | Orchestrator | Self-review or delegate to reviewer agent |
+| **COMMIT** | Orchestrator | Atomic commit with conventional message |
+| **LEARN** | Orchestrator | Log decisions and update progress.md |
+| **NEXT** | Orchestrator | Loop back to PICK |
+
+### Autonomous Completion
+
+The loop doesn't stop when `todo` tasks run out:
+- **Auto-promotes** backlog items that are needed to meet the project spec
+- **Discovers** new tasks during build and review (missing tests, error handling)
+- **Completes** when all goals are satisfied, verify passes, and backlog is evaluated
 
 ## Task Manager
 
