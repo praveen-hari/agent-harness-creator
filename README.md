@@ -49,6 +49,65 @@ PICK → SPEC → PLAN → BUILD (sub-agent) → VERIFY → REVIEW → COMMIT �
 | **LEARN** | Orchestrator | Log decisions and update progress.md |
 | **NEXT** | Orchestrator | Loop back to PICK |
 
+### Loop Flow
+
+```mermaid
+flowchart TD
+    START([Session Start]) --> STATUS[Run task.py status]
+    STATUS --> PROGRESS[Read progress.md]
+    PROGRESS --> PICK
+
+    PICK[🎯 PICK\ntask.py next] --> HAS_TASK{Task found?}
+    HAS_TASK -->|Yes| SPEC
+    HAS_TASK -->|No| BACKLOG{Backlog items?}
+    BACKLOG -->|Yes| PROMOTE[Auto-promote\nrelevant items] --> PICK
+    BACKLOG -->|No| COMPLETE([✅ PROJECT COMPLETE])
+
+    SPEC[📋 SPEC\nWrite acceptance criteria] --> PLAN
+    PLAN[📐 PLAN\nBreak into subtasks] --> BUILD
+
+    BUILD[🔨 BUILD\nDelegate to sub-agent\nvia runSubagent] --> RESULT{Sub-agent\nresult?}
+    RESULT -->|DONE| VERIFY
+    RESULT -->|BLOCKED| BLOCK[task.py block] --> PICK
+
+    VERIFY[✅ VERIFY\nRun tests] --> PASS{Tests pass?}
+    PASS -->|Yes| REVIEW
+    PASS -->|No| RETRY{Attempt\n≤ 3?}
+    RETRY -->|Yes| FIX[Fix root cause] --> VERIFY
+    RETRY -->|No| BLOCK
+
+    REVIEW[🔍 REVIEW\nSelf-review + skills] --> CLEAN{Issues?}
+    CLEAN -->|No| COMMIT
+    CLEAN -->|Yes| REWORK[Fix issues] --> REVIEW
+
+    COMMIT[💾 COMMIT\nAtomic conventional commit] --> LEARN
+    LEARN[📝 LEARN\nLog decisions\nUpdate progress.md\nUpdate project-context.md] --> NEXT
+    NEXT[🔄 NEXT] --> PICK
+
+    style BUILD fill:#e1f5fe,stroke:#0288d1
+    style COMPLETE fill:#c8e6c9,stroke:#388e3c
+    style BLOCK fill:#ffcdd2,stroke:#d32f2f
+```
+
+### Task State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> backlog : add --backlog
+    [*] --> todo : add
+
+    backlog --> todo : auto-promote
+    todo --> active : next
+    active --> review : review
+    active --> blocked : block
+    active --> done : done
+    review --> done : approve
+    review --> active : reject
+    blocked --> todo : unblock
+    done --> archive : archive
+    archive --> [*]
+```
+
 ### Project Context
 
 Every sub-agent receives `project-context.md` — a concise file (~50-100 lines) describing:
