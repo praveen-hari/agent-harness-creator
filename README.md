@@ -87,6 +87,12 @@ The harness optionally leverages 14 SDLC skills if installed at `~/.agents/skill
 
 Skills are **optional enhancers** — the harness works standalone without any of them.
 
+The SDLC skills come from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills). Install them with:
+
+```bash
+git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills
+```
+
 ## Three Modes
 
 | Mode | Trigger | Behavior |
