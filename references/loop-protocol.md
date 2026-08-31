@@ -34,9 +34,22 @@ The harness operates as a continuous loop over a task list using an **orchestrat
 ### Why Sub-Agents?
 
 - **No context exhaustion**: Each task gets a fresh context window
-- **Orchestrator stays lean**: ~5KB per loop iteration (task file + script output)
+- **Orchestrator stays lean**: ~5KB per loop iteration (task file + script output + project context)
 - **Parallel-ready**: Multiple sub-agents could run concurrently (future)
 - **Failure isolation**: A sub-agent crash doesn't lose orchestrator state
+
+### Project Context
+
+Every sub-agent receives `.codestudio/project-context.md` in its prompt. This file contains:
+
+- **Stack**: Language, framework, key libraries and versions
+- **Architecture**: Directory layout and layer relationships (e.g., routes → services → repositories)
+- **Conventions**: Naming patterns, error handling style, testing approach
+- **Boundaries**: Files/directories that should not be modified
+
+Without this, sub-agents would guess at where to put code, what patterns to follow, and what not to touch. With it, every sub-agent produces code that fits the project.
+
+**The orchestrator updates project-context.md during LEARN** when architectural decisions change (new patterns adopted, new boundaries established, stack changes).
 
 ## Loop Stages
 

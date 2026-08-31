@@ -19,6 +19,7 @@ your-project/
 └── .codestudio/
     ├── task.py                    # Task manager script (11 commands)
     ├── codestudio-instructions.md # 9-stage loop protocol
+    ├── project-context.md         # Stack, architecture, conventions, boundaries
     ├── tasks/
     │   └── index.json             # Task index (agent never edits directly)
     ├── progress.md                # Session memory across conversations
@@ -47,6 +48,17 @@ PICK → SPEC → PLAN → BUILD (sub-agent) → VERIFY → REVIEW → COMMIT �
 | **COMMIT** | Orchestrator | Atomic commit with conventional message |
 | **LEARN** | Orchestrator | Log decisions and update progress.md |
 | **NEXT** | Orchestrator | Loop back to PICK |
+
+### Project Context
+
+Every sub-agent receives `project-context.md` — a concise file (~50-100 lines) describing:
+
+- **Stack** — language, framework, key libraries
+- **Architecture** — directory layout, layer relationships
+- **Conventions** — naming, patterns, error handling
+- **Boundaries** — files/dirs that should not be modified
+
+For new projects, this is built from interview answers. For existing repos, it's extracted by scanning source files, directory structure, and config files. Updated during LEARN when architectural decisions change.
 
 ### Autonomous Completion
 
@@ -164,6 +176,7 @@ python3 .codestudio/task.py next
 └── templates/
     ├── task.py.tmpl                      # Task manager script
     ├── codestudio-instructions.md.tmpl   # Loop protocol template
+    ├── project-context.md.tmpl           # Project context template
     ├── index.json.tmpl                   # Empty task index
     ├── progress.md.tmpl                  # Session memory template
     └── reviewer.agent.md.tmpl            # Reviewer agent template

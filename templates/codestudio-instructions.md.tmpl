@@ -14,16 +14,27 @@ For each task's BUILD stage, launch a sub-agent with `runSubagent`:
 ```
 runSubagent(
   prompt: "You are working on {{PROJECT_NAME}}.
-    Task: <paste ## What from task file>
-    Plan: <paste ## Plan from task file>
-    Verify command: {{VERIFY_CMD}}
+
+    PROJECT CONTEXT:
+    <paste full contents of .codestudio/project-context.md>
+
+    TASK:
+    <paste ## What from task file>
+
+    PLAN:
+    <paste ## Plan from task file>
+
+    VERIFY COMMAND: {{VERIFY_CMD}}
 
     Instructions:
-    1. Read the codebase to understand the project structure
-    2. Implement each subtask in ## Plan, checking boxes as you go
-    3. Run `{{VERIFY_CMD}}` after each subtask — all tests must pass
-    4. When all subtasks pass, report DONE with a summary of changes
-    5. If stuck after 3 attempts on any step, report BLOCKED with the reason
+    1. Follow the conventions and architecture in PROJECT CONTEXT above
+    2. Implement each subtask in PLAN, checking boxes as you go
+    3. Put code in the correct location per the Architecture section
+    4. Follow naming and patterns per the Conventions section
+    5. Do NOT modify files listed in Boundaries
+    6. Run `{{VERIFY_CMD}}` after each subtask — all tests must pass
+    7. When all subtasks pass, report DONE with a summary of changes
+    8. If stuck after 3 attempts on any step, report BLOCKED with the reason
 
     Do NOT run task.py commands — the orchestrator manages task state.",
   description: "Build T-XXX: <title>"
@@ -128,7 +139,8 @@ If the `git-workflow-and-versioning` skill is available, follow it.
 After completing the task:
 1. Write ## Log in the task file: decisions made, problems hit, what worked.
 2. Append a one-line summary to `.codestudio/progress.md`.
-3. Run `python3 .codestudio/task.py done` (or `approve` if coming from review).
+3. If architectural decisions were made (new patterns, new boundaries, stack changes), update `.codestudio/project-context.md` to reflect them.
+4. Run `python3 .codestudio/task.py done` (or `approve` if coming from review).
 
 ### 9. NEXT
 

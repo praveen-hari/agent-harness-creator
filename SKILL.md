@@ -34,6 +34,12 @@ Then inspect the project root:
 7. **Check for UI files** (tsx, jsx, vue, svelte, components/)
 8. **Check for existing `.codestudio/`** → upgrade mode
 
+9. **Extract project context** for existing repos:
+   - Read 2-3 representative source files → detect naming conventions, patterns, error handling
+   - Read directory structure → infer architecture layers (routes → services → models, etc.)
+   - Read config files → identify linting rules, formatting, CI expectations
+   - Read `.gitignore`, lock files → identify boundaries (don't-touch files)
+
 Record findings:
 - `PROJECT_NAME`: directory name or package name
 - `VERIFY_CMD`: detected or "echo 'no tests yet'"
@@ -42,6 +48,10 @@ Record findings:
 - `UI_PROJECT`: true/false
 - `SOURCE_COUNT`: number of source files
 - `UPGRADE_MODE`: true if `.codestudio/` exists
+- `STACK`: language, framework, key libraries
+- `ARCHITECTURE`: directory layout and layer relationships
+- `CONVENTIONS`: naming, patterns, error handling style
+- `BOUNDARIES`: files/dirs that should not be modified
 
 ## Step 2 — INTERVIEW
 
@@ -55,10 +65,12 @@ read_file: ~/.agents/skills/interview-me/SKILL.md
 Ask the user one question at a time to determine:
 1. What are you building? (product description)
 2. Who is it for? (users, developers, internal)
-3. What tech stack? (this sets VERIFY_CMD)
-4. What's the first feature to build?
+3. What tech stack? (this sets VERIFY_CMD, STACK)
+4. What architecture? (monolith, microservices, serverless — sets ARCHITECTURE)
+5. Any conventions you want enforced? (naming, patterns, linting)
+6. What's the first feature to build?
 
-Use answers to populate PROJECT_NAME, VERIFY_CMD, and generate initial tasks.
+Use answers to populate PROJECT_NAME, VERIFY_CMD, STACK, ARCHITECTURE, CONVENTIONS, and generate initial tasks.
 
 **If existing repo**: Confirm detected settings with the user:
 - "I detected [Node.js + Jest]. Verify command: `npm test`. Correct?"
@@ -98,6 +110,18 @@ Create the `.codestudio/` directory with all harness files.
 4. **`.codestudio/progress.md`** — from `progress.md.tmpl`
    Replace `{{PROJECT_NAME}}`. **Preserve existing if upgrade mode.**
 
+5. **`.codestudio/project-context.md`** — from `project-context.md.tmpl`
+   Replace template variables:
+   - `{{PROJECT_NAME}}` → project name
+   - `{{STACK}}` → detected/provided tech stack (e.g., "Next.js 14, TypeScript, Prisma, PostgreSQL")
+   - `{{ARCHITECTURE}}` → detected/provided structure (e.g., "API routes → Services → Repositories")
+   - `{{CONVENTIONS}}` → detected/provided patterns (e.g., "kebab-case files, Zod validation at boundaries")
+   - `{{BOUNDARIES}}` → detected/provided constraints (e.g., "Don't modify: migrations/, .env")
+   
+   For existing repos: populate from scan findings (source files, directory structure, configs).
+   For empty repos: populate from interview answers.
+   **Preserve existing if upgrade mode** — user may have customized it.
+
 #### Conditionally generate:
 
 5. **`.codestudio/reviewer.agent.md`** — from `reviewer.agent.md.tmpl`
@@ -111,6 +135,7 @@ Create the `.codestudio/` directory with all harness files.
 | `task.py` | Overwrite (latest version) |
 | `codestudio-instructions.md` | Overwrite (re-detect settings) |
 | `reviewer.agent.md` | Overwrite if applicable |
+| `project-context.md` | **PRESERVE** (user may have customized) |
 | `tasks/index.json` | **PRESERVE** |
 | `tasks/*.md` | **PRESERVE** |
 | `progress.md` | **PRESERVE** |
@@ -152,6 +177,7 @@ After generation, report:
 Harness created at .codestudio/
   ├── task.py           — task manager (11 commands)
   ├── codestudio-instructions.md — loop protocol for {{PROJECT_NAME}}
+  ├── project-context.md — stack, architecture, conventions, boundaries
   ├── tasks/index.json  — task index (N tasks seeded)
   ├── progress.md       — session memory
   └── reviewer.agent.md — code reviewer (if generated)
