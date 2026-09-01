@@ -148,18 +148,53 @@ Detection is additive. A Next.js project with JWT auth and Playwright tests prod
 - UI flag with frontend-ui-engineering reference
 
 
+## Tier Inference
+
+Determine the verification tier based on what actually exists — never aspirationally:
+
+| Evidence | Tier | What it means |
+|----------|------|--------------|
+| No test files, no test framework | **L0** (Unverified) | Build + lint only. Output labeled `UNVERIFIED`. First task: add characterization tests. |
+| Test files exist, some tests pass | **L1** (Diff-verified) | Tests + diff coverage on changed lines. Legacy code is not held to a bar it can't meet. |
+| Good test suite, CI green, dependencies scanned | **L2** (Verified) | Full suite + CVE scanning. The whole project is green. |
+| Mutation testing, perf budgets, a11y checks | **L3** (Hardened) | Tests are meaningful, not merely present. Runtime properties are measured. |
+
+## Coverage Tool Detection
+
+| Signal | Tool | Diff Coverage Command |
+|--------|------|----------------------|
+| `coverlet.collector` in test .csproj | Coverlet (.NET) | `dotnet test --collect:"XPlat Code Coverage"` → intersect with `git diff` |
+| `c8` or `istanbul` in package.json | c8/Istanbul (JS) | `npx c8 --reporter=lcov npm test` → intersect with `git diff` |
+| `coverage` in requirements/pyproject | coverage.py | `coverage run -m pytest && coverage report` → intersect with `git diff` |
+| `pytest-cov` in dependencies | pytest-cov | `pytest --cov --cov-report=xml` → intersect with `git diff` |
+| `cargo-tarpaulin` installed | Tarpaulin (Rust) | `cargo tarpaulin --out xml` |
+| `go tool cover` available | Go cover | `go test -coverprofile=cover.out ./...` |
+
+**Diff coverage is the key insight**: global coverage on a legacy codebase is meaningless. Diff coverage asks "of the lines THIS TASK changed, how many are tested?" — enforceable at 80% on any codebase from day one.
+
+## Defect Catalog Selection
+
+| Detected Stack | Catalog File |
+|---------------|-------------|
+| React / Next.js / Vite (JSX/TSX) | `catalogs/defects-react.md` |
+| .NET / ASP.NET Core / Blazor | `catalogs/defects-dotnet.md` |
+| Python / Django / FastAPI / Flask | `catalogs/defects-python.md` |
+
+The catalog is referenced in the orchestrator agent's REVIEW stage. The reviewer works each applicable entry against the diff.
+
 ## Empty Repository
 
 When no source files are detected:
 1. Enter INTERVIEW mode
 2. Use `interview-me` skill to gather: what, for whom, tech stack, first feature
 3. Generate initial tasks from interview answers
-4. Set verification steps based on chosen tech stack
+4. Set gates based on chosen tech stack at L1 (or L0 if user opts out of tests)
 5. Proceed with normal loop
 
 ## Upgrade Detection
 
 When `.codestudio/` already exists:
-1. Preserve: `tasks/`, `progress.md`, `archive/`
+1. Preserve: `tasks/`, `progress.md`, `archive/`, `harness-lock.json`, `evidence/`
 2. Update: `task.py`, `agents/orchestrator.agent.md`, `instructions/task-conventions.instructions.md`
-3. Report: what was updated vs preserved
+3. Merge: `project-context.md` — update GENERATED sections (tier, gates), preserve hand-written ones
+4. Report: what was updated vs preserved

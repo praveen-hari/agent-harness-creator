@@ -43,8 +43,9 @@ Then inspect the project root:
 
 Record findings:
 - `PROJECT_NAME`: directory name or package name
-- `VERIFY_STEPS`: ordered list of verification steps (see detection-rules.md for defaults per stack)
-- `HAS_GIT`: true/false
+- `TIER`: L0/L1/L2/L3 based on test reality (see detection-rules.md for inference)
+- `GATES`: ordered list of evidence gates (command + threshold + ratchet) per tier
+- `HAS_GIT`: true/false (required — no git means no rollback)
 - `SECURITY_FLAGS`: list of detected patterns
 - `UI_PROJECT`: true/false
 - `SOURCE_COUNT`: number of source files
@@ -53,6 +54,7 @@ Record findings:
 - `ARCHITECTURE`: directory layout and layer relationships
 - `CONVENTIONS`: naming, patterns, error handling style
 - `BOUNDARIES`: files/dirs that should not be modified
+- `COVERAGE_TOOL`: detected coverage tool (coverlet, c8, coverage.py, etc.)
 
 ## Step 2 — INTERVIEW
 
@@ -79,6 +81,24 @@ Use answers to populate PROJECT_NAME, VERIFY_STEPS, STACK, ARCHITECTURE, CONVENT
 
 **If upgrade mode**: Report what will be updated:
 - "Existing harness found. I'll update task.py and instructions. Your tasks and progress will be preserved."
+
+## Step 2.5 — PROPOSE (never skip)
+
+Before generating files, present the user with a proposal. **Nothing is written until approved.**
+
+Show:
+1. **Detection summary** — what was found and the evidence for each conclusion (file paths, dependency names)
+2. **Tier selection** — which tier (L0–L3) based on what actually exists:
+   - **L0 Unverified**: no tests → build + lint only. Output labeled `UNVERIFIED`.
+   - **L1 Diff-verified**: tests exist → tests + diff coverage on changed lines.
+   - **L2 Verified**: good test suite → full suite + CVE scanning.
+   - **L3 Hardened**: mature project → mutation testing + perf/leak budgets.
+3. **Gate table** — each gate with: tool, command, threshold, status (ready / needs install)
+4. **What is NOT proposed** — with a one-line rationale and cost for each omission. *This is the teaching surface — it's how users learn that diff coverage and mutation testing exist and what they cost.*
+5. **Gaps** — missing tools, missing configs, and what the harness will do about each
+6. **File list** — what will be created, what will be preserved
+
+Ask: `Proceed? [y / adjust tier / adjust gates / explain <gate>]`
 
 ## Step 3 — GENERATE
 
@@ -128,15 +148,17 @@ Create the `.codestudio/` directory with all harness files.
    - `{{ARCHITECTURE}}` → detected/provided structure (e.g., "API routes → Services → Repositories")
    - `{{CONVENTIONS}}` → detected/provided patterns (e.g., "kebab-case files, Zod validation at boundaries")
    - `{{BOUNDARIES}}` → detected/provided constraints (e.g., "Don't modify: migrations/, .env")
-   - `{{VERIFY_STEPS}}` → numbered verification steps detected from the project (see detection-rules.md)
+   - `{{TIER}}` → L0/L1/L2/L3 based on test reality
+   - `{{TIER_DESCRIPTION}}` → what the tier proves and does NOT prove
+   - `{{GATES}}` → numbered evidence gates with command, threshold, and ratchet flag
    
-   Example VERIFY_STEPS for a Next.js + TypeScript + Jest + Playwright project:
+   Example GATES for a Next.js + TypeScript + Jest project at L1:
    ```
-   1. **Lint**: `npx eslint .` — code style and static analysis
-   2. **Typecheck**: `npx tsc --noEmit` — type safety
-   3. **Test**: `npx jest` — unit and integration tests
-   4. **E2E Tests**: `npx playwright test` — end-to-end tests
-   5. **Build**: `npm run build` — compilation succeeds
+   1. **build**: `npm run build` — threshold: exit code 0
+   2. **lint**: `npx eslint .` — threshold: exit code 0
+   3. **typecheck**: `npx tsc --noEmit` — threshold: exit code 0
+   4. **test**: `npx jest` — threshold: exit code 0 (ratchet)
+   5. **coverage-diff**: `npx c8 --reporter=lcov npx jest -- --changedSince=HEAD~1` — threshold: diff line rate ≥ 0.80 (ratchet)
    ```
    
    For existing repos: populate from scan findings (source files, directory structure, configs).
@@ -190,13 +212,17 @@ Also verify:
 After generation, report:
 ```
 Harness created at .codestudio/
-  ├── task.py                    — task manager (11 commands)
+  ├── task.py                    — task manager (verify, done, block, etc.)
   ├── agents/
   │   └── orchestrator.agent.md  — loop protocol (@orchestrator)
   ├── instructions/
   │   └── task-conventions.instructions.md — task file format, commits
-  ├── project-context.md         — stack, architecture, conventions, verification
+  ├── catalogs/
+  │   └── defects-{{FRAMEWORK}}.md — framework-specific defect catalog
+  ├── project-context.md         — stack, architecture, tier, gates
+  ├── harness-lock.json          — ratchet floors (thresholds only go up)
   ├── tasks/index.json           — task index (N tasks seeded)
+  ├── evidence/                  — gate output per task (gitignored)
   └── progress.md                — session memory
 
 Detected: [language], verification steps: [list]

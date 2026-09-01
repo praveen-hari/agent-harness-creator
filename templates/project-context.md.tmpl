@@ -19,9 +19,16 @@
 
 {{BOUNDARIES}}
 
-## Verification
+## Verification Tier: {{TIER}}
 
-<!-- Each step runs in order. ALL must pass before committing. -->
-<!-- Customize per project: add/remove/reorder steps as needed. -->
+<!-- L0=build+lint only, L1=tests+diff coverage, L2=full suite+CVEs, L3=mutation+perf -->
+<!-- What this tier proves and what it does NOT prove: -->
+{{TIER_DESCRIPTION}}
 
-{{VERIFY_STEPS}}
+## Gates
+
+<!-- Each gate: id, command, threshold, evidence path. -->
+<!-- task.py done REFUSES without passing evidence at the current commit. -->
+<!-- Thresholds with ratchet:true can only go UP — see .codestudio/harness-lock.json -->
+
+{{GATES}}

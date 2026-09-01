@@ -40,7 +40,9 @@ Examples:
 
 ```
 python3 .codestudio/task.py next              # get next task
-python3 .codestudio/task.py done              # mark complete
+python3 .codestudio/task.py verify            # run all gates, capture evidence
+python3 .codestudio/task.py done              # mark complete (requires passing evidence)
+python3 .codestudio/task.py done --skip-gates # bypass evidence check (escape hatch)
 python3 .codestudio/task.py block "reason"    # can't proceed
 python3 .codestudio/task.py unblock T-XXX     # try again
 python3 .codestudio/task.py review            # submit for review

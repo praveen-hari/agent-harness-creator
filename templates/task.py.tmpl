@@ -6,7 +6,8 @@ Agent creates task content in markdown files. This script manages status transit
 
 Usage:
     python3 .codestudio/task.py next
-    python3 .codestudio/task.py done
+    python3 .codestudio/task.py verify
+    python3 .codestudio/task.py done [--skip-gates]
     python3 .codestudio/task.py block "reason"
     python3 .codestudio/task.py unblock T-003
     python3 .codestudio/task.py review
@@ -19,14 +20,19 @@ Usage:
 
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
-from datetime import date
+from datetime import date, datetime
 
 CODESTUDIO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 TASKS_DIR = os.path.join(CODESTUDIO_DIR, "tasks")
 INDEX_FILE = os.path.join(TASKS_DIR, "index.json")
 ARCHIVE_DIR = os.path.join(CODESTUDIO_DIR, "archive")
+EVIDENCE_DIR = os.path.join(CODESTUDIO_DIR, "evidence")
+LOCK_FILE = os.path.join(CODESTUDIO_DIR, "harness-lock.json")
+CONTEXT_FILE = os.path.join(CODESTUDIO_DIR, "project-context.md")
 
 
 def load_index():
@@ -69,6 +75,178 @@ def get_by_id(tasks, task_id):
         if t["id"] == task_id:
             return t
     return None
+
+
+# ── Evidence Gates ────────────────────────────────────────────────────
+
+
+def git_head():
+    """Get current git HEAD commit hash, or None if not a git repo."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+
+def parse_gates():
+    """Parse gates from project-context.md's ## Gates section."""
+    if not os.path.exists(CONTEXT_FILE):
+        return []
+    with open(CONTEXT_FILE, "r") as f:
+        content = f.read()
+    # Find ## Gates section
+    match = re.search(r'^## Gates\s*\n(.*?)(?=^## |\Z)', content, re.MULTILINE | re.DOTALL)
+    if not match:
+        return []
+    gates_text = match.group(1)
+    gates = []
+    # Parse numbered gates: N. **id**: `command` — threshold: condition
+    for m in re.finditer(
+        r'^\d+\.\s+\*\*(\S+)\*\*.*?`([^`]+)`.*?threshold:\s*(.+?)(?:\s*\(ratchet\))?\s*$',
+        gates_text, re.MULTILINE
+    ):
+        gate = {
+            "id": m.group(1),
+            "command": m.group(2),
+            "threshold_desc": m.group(3).strip(),
+            "ratchet": "(ratchet)" in m.group(0)
+        }
+        gates.append(gate)
+    return gates
+
+
+def load_lock():
+    """Load harness-lock.json."""
+    if not os.path.exists(LOCK_FILE):
+        return {"ratchetFloors": {}}
+    with open(LOCK_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_lock(lock):
+    """Save harness-lock.json."""
+    with open(LOCK_FILE, "w") as f:
+        json.dump(lock, f, indent=2)
+        f.write("\n")
+
+
+def run_gate(gate, task_id):
+    """Run a single gate and return (pass, output)."""
+    evidence_task_dir = os.path.join(EVIDENCE_DIR, task_id)
+    os.makedirs(evidence_task_dir, exist_ok=True)
+
+    try:
+        result = subprocess.run(
+            gate["command"], shell=True,
+            capture_output=True, text=True, timeout=300
+        )
+        output = result.stdout + result.stderr
+        passed = result.returncode == 0
+
+        # Save evidence
+        evidence_file = os.path.join(evidence_task_dir, f"{gate['id']}.txt")
+        with open(evidence_file, "w") as f:
+            f.write(f"Gate: {gate['id']}\n")
+            f.write(f"Command: {gate['command']}\n")
+            f.write(f"Exit code: {result.returncode}\n")
+            f.write(f"Timestamp: {datetime.now().isoformat()}\n")
+            f.write(f"---\n{output}")
+
+        return passed, output.strip()
+    except subprocess.TimeoutExpired:
+        return False, "TIMEOUT: gate exceeded 5 minute limit"
+    except FileNotFoundError:
+        return False, f"TOOL NOT FOUND: {gate['command'].split()[0]}"
+
+
+def cmd_verify(tasks):
+    """Run all gates for the active task, produce gate-summary.json."""
+    active = get_active(tasks)
+    if not active:
+        print("ERROR: No active task. Run 'task next' first.")
+        sys.exit(1)
+
+    gates = parse_gates()
+    if not gates:
+        print("NO GATES DEFINED in project-context.md.")
+        print("Add gates to ## Gates section, or run 'task done --skip-gates'.")
+        return
+
+    task_id = active["id"]
+    evidence_task_dir = os.path.join(EVIDENCE_DIR, task_id)
+    os.makedirs(evidence_task_dir, exist_ok=True)
+
+    print(f"VERIFY: {task_id} — running {len(gates)} gates\n")
+
+    results = []
+    all_pass = True
+    for gate in gates:
+        passed, output = run_gate(gate, task_id)
+        status = "PASS" if passed else "FAIL"
+        icon = "✅" if passed else "❌"
+        print(f"  {icon} {gate['id']}: {status}")
+        if not passed:
+            all_pass = False
+            # Show first 3 lines of failure output
+            for line in output.split("\n")[:3]:
+                print(f"       {line}")
+            print()
+        results.append({
+            "gate": gate["id"],
+            "command": gate["command"],
+            "passed": passed,
+            "ratchet": gate.get("ratchet", False)
+        })
+
+    # Write gate-summary.json
+    summary = {
+        "task": task_id,
+        "commit": git_head(),
+        "timestamp": datetime.now().isoformat(),
+        "verdict": "pass" if all_pass else "fail",
+        "gates": results
+    }
+    summary_path = os.path.join(evidence_task_dir, "gate-summary.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+        f.write("\n")
+
+    passed_count = sum(1 for r in results if r["passed"])
+    print(f"\nVERDICT: {'PASS' if all_pass else 'FAIL'} ({passed_count}/{len(results)} gates)")
+    if all_pass:
+        print(f"Evidence: .codestudio/evidence/{task_id}/gate-summary.json")
+        print("Ready for: task done")
+
+        # Update ratchet floors for passing gates
+        lock = load_lock()
+        for r in results:
+            if r["ratchet"] and r["passed"]:
+                if r["gate"] not in lock["ratchetFloors"]:
+                    lock["ratchetFloors"][r["gate"]] = {
+                        "recordedAt": date.today().isoformat()
+                    }
+        save_lock(lock)
+    else:
+        print("Fix failures and re-run: task verify")
+
+
+def check_evidence(task_id):
+    """Check if passing evidence exists for the task at current commit. Returns (ok, message)."""
+    summary_path = os.path.join(EVIDENCE_DIR, task_id, "gate-summary.json")
+    if not os.path.exists(summary_path):
+        return False, f"No evidence found. Run 'task verify' first."
+    with open(summary_path, "r") as f:
+        summary = json.load(f)
+    if summary.get("verdict") != "pass":
+        return False, f"Gates did not pass (verdict: {summary['verdict']}). Fix and re-run 'task verify'."
+    head = git_head()
+    if head and summary.get("commit") and summary["commit"] != head:
+        return False, f"Evidence is stale (commit changed since verify). Re-run 'task verify'."
+    return True, "Evidence valid."
 
 
 # ── Commands ──────────────────────────────────────────────────────────
@@ -129,15 +307,34 @@ def cmd_next(tasks):
             print("ALL TASKS DONE. No backlog items.")
 
 
-def cmd_done(tasks):
-    """Active → done."""
+def cmd_done(tasks, skip_gates=False):
+    """Active → done. Requires passing evidence unless --skip-gates."""
     active = get_active(tasks)
     if not active:
         print("ERROR: No active task. Run 'task next' first.")
         sys.exit(1)
+
+    gates = parse_gates()
+    if gates and not skip_gates:
+        ok, msg = check_evidence(active["id"])
+        if not ok:
+            print(f"REFUSED: cannot mark {active['id']} done without passing gate evidence.")
+            print(f"  {msg}")
+            print()
+            print("This is the harness working as designed: a task is done when")
+            print("tools say so, not when an agent says so.")
+            print()
+            print("Run 'task verify' to execute gates, or 'task done --skip-gates' to bypass.")
+            sys.exit(1)
+
     active["status"] = "done"
     save_index(tasks)
-    print(f"DONE: {active['id']} — {active['title']}")
+    if gates and not skip_gates:
+        print(f"DONE (verified): {active['id']} — {active['title']}")
+    elif skip_gates:
+        print(f"DONE (gates skipped): {active['id']} — {active['title']}")
+    else:
+        print(f"DONE: {active['id']} — {active['title']}")
 
 
 def cmd_block(tasks, reason):
@@ -179,8 +376,8 @@ def cmd_review(tasks):
     print(f"Write ## Review in .codestudio/tasks/{active['id']}.md")
 
 
-def cmd_approve(tasks):
-    """Review → done."""
+def cmd_approve(tasks, skip_gates=False):
+    """Review → done. Requires passing evidence unless --skip-gates."""
     review_task = None
     for t in tasks:
         if t["status"] == "review":
@@ -189,6 +386,16 @@ def cmd_approve(tasks):
     if not review_task:
         print("ERROR: No task in review.")
         sys.exit(1)
+
+    gates = parse_gates()
+    if gates and not skip_gates:
+        ok, msg = check_evidence(review_task["id"])
+        if not ok:
+            print(f"REFUSED: cannot approve {review_task['id']} without passing gate evidence.")
+            print(f"  {msg}")
+            print("Run 'task verify' or 'task approve --skip-gates' to bypass.")
+            sys.exit(1)
+
     review_task["status"] = "done"
     save_index(tasks)
     print(f"APPROVED: {review_task['id']} — {review_task['title']}")
@@ -334,8 +541,11 @@ def main():
 
     if cmd == "next":
         cmd_next(tasks)
+    elif cmd == "verify":
+        cmd_verify(tasks)
     elif cmd == "done":
-        cmd_done(tasks)
+        skip_gates = "--skip-gates" in sys.argv
+        cmd_done(tasks, skip_gates=skip_gates)
     elif cmd == "block":
         reason = sys.argv[2] if len(sys.argv) > 2 else "no reason given"
         cmd_block(tasks, reason)
@@ -347,7 +557,8 @@ def main():
     elif cmd == "review":
         cmd_review(tasks)
     elif cmd == "approve":
-        cmd_approve(tasks)
+        skip_gates = "--skip-gates" in sys.argv
+        cmd_approve(tasks, skip_gates=skip_gates)
     elif cmd == "reject":
         cmd_reject(tasks)
     elif cmd == "add":
@@ -384,7 +595,7 @@ def main():
         cmd_info(tasks, sys.argv[2])
     else:
         print(f"Unknown command: {cmd}")
-        print("Commands: next, done, block, unblock, review, approve, reject, add, status, list, archive, info")
+        print("Commands: next, verify, done, block, unblock, review, approve, reject, add, status, list, archive, info")
         sys.exit(1)
 
 

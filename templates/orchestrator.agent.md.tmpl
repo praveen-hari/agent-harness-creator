@@ -44,7 +44,7 @@ runSubagent(
     3. Put code in the correct location per the Architecture section
     4. Follow naming and patterns per the Conventions section
     5. Do NOT modify files listed in Boundaries
-    6. After each subtask, run ALL verification steps from the ## Verification section in PROJECT CONTEXT — every step must pass
+    6. After each subtask, run ALL gates from the ## Gates section in PROJECT CONTEXT — every gate must pass
     7. When all subtasks pass, report DONE with a summary of changes
     8. If stuck after 3 attempts on any step, report BLOCKED with the reason
 
@@ -83,25 +83,35 @@ For any task with >2 subtasks, read and follow `~/.agents/skills/planning-and-ta
 
 Include in the sub-agent prompt:
 - The full ## What and ## Plan from the task file
-- The full ## Verification section from `project-context.md` (all steps)
+- The full ## Gates section from `project-context.md` (all evidence gates)
 - Skill instructions the sub-agent MUST follow:
   - `test-driven-development` (`~/.agents/skills/test-driven-development/SKILL.md`): RED → GREEN → REFACTOR
   - `incremental-implementation` (`~/.agents/skills/incremental-implementation/SKILL.md`): thin vertical slices for multi-file changes
   - UI work → `frontend-ui-engineering` (`~/.agents/skills/frontend-ui-engineering/SKILL.md`)
 
-### 5. VERIFY
-Run every step listed in `## Verification` of `.codestudio/project-context.md`, in order.
-All steps must pass before proceeding. If any step fails, stop — do not skip to the next step.
+### 5. VERIFY (evidence-gated)
+Run: `python3 .codestudio/task.py verify`
+
+This runs every gate defined in `## Gates` of `project-context.md`, captures evidence in `.codestudio/evidence/<TASK>/`, and produces `gate-summary.json`. **`task.py done` will REFUSE without passing evidence at the current commit.**
+
+The agent may not assert that gates pass — it must run the tool and cite the evidence artifact.
 
 If verify fails:
 1. Read and follow `~/.agents/skills/debugging-and-error-recovery/SKILL.md` — stop, preserve evidence, triage systematically
 2. Fix the root cause, not the symptom
-3. Re-run verify
+3. Re-run: `python3 .codestudio/task.py verify`
 4. After 3 failed attempts, write the issue in ## Log and run `python3 .codestudio/task.py block "reason"`
 
-### 6. REVIEW
-For non-trivial tasks, read and follow `~/.agents/skills/code-review-and-quality/SKILL.md` for a structured 5-axis review.
-If the task touches auth, user data, or external APIs, also read and follow `~/.agents/skills/security-and-hardening/SKILL.md`.
+### 6. REVIEW (defect-catalog-driven)
+For non-trivial tasks:
+1. Read and follow `~/.agents/skills/code-review-and-quality/SKILL.md` for a structured 5-axis review.
+2. Read the framework defect catalog at `.codestudio/catalogs/defects-{{FRAMEWORK}}.md`.
+   Work each applicable entry against the diff. For each finding:
+   - Name the rule id (e.g., R01, N05, P03)
+   - State whether the rule is enforced in the project config (linter, analyzer)
+   - If not enforced: the finding is "enable this rule" (config fix), not "fix this instance"
+   - Do NOT re-litigate what gates already proved (if coverage gate passed, don't complain about coverage)
+3. If the task touches auth, user data, or external APIs, also read `~/.agents/skills/security-and-hardening/SKILL.md`.
 
 Write ## Review in the task file with findings. If issues found:
 1. Run `python3 .codestudio/task.py review` to mark the task for review
@@ -160,7 +170,9 @@ Skills are **required**. At each stage, read and follow the corresponding skill.
 
 ```
 python3 .codestudio/task.py next              # get next task
-python3 .codestudio/task.py done              # mark complete
+python3 .codestudio/task.py verify            # run gates, capture evidence
+python3 .codestudio/task.py done              # mark complete (needs evidence)
+python3 .codestudio/task.py done --skip-gates # bypass evidence check
 python3 .codestudio/task.py block "reason"    # can't proceed
 python3 .codestudio/task.py unblock T-XXX     # try again
 python3 .codestudio/task.py review            # submit for review
