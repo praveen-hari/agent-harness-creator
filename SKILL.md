@@ -27,8 +27,8 @@ Then inspect the project root:
 
 1. **List root directory** to find build files, configs, source directories
 2. **Detect language/framework** from manifest files (package.json, requirements.txt, Cargo.toml, etc.)
-3. **Detect test framework** for the verify command
-4. **Count source files** to decide reviewer threshold
+3. **Detect test/lint/build tools** for verification steps
+4. **Count source files** to gauge project complexity
 5. **Check for .git** to enable/disable COMMIT stage
 6. **Scan for security signals** (auth, JWT, crypto patterns)
 7. **Check for UI files** (tsx, jsx, vue, svelte, components/)
@@ -42,7 +42,7 @@ Then inspect the project root:
 
 Record findings:
 - `PROJECT_NAME`: directory name or package name
-- `VERIFY_CMD`: detected or "echo 'no tests yet'"
+- `VERIFY_STEPS`: ordered list of verification steps (see detection-rules.md for defaults per stack)
 - `HAS_GIT`: true/false
 - `SECURITY_FLAGS`: list of detected patterns
 - `UI_PROJECT`: true/false
@@ -65,15 +65,15 @@ read_file: ~/.agents/skills/interview-me/SKILL.md
 Ask the user one question at a time to determine:
 1. What are you building? (product description)
 2. Who is it for? (users, developers, internal)
-3. What tech stack? (this sets VERIFY_CMD, STACK)
+3. What tech stack? (this sets VERIFY_STEPS, STACK)
 4. What architecture? (monolith, microservices, serverless — sets ARCHITECTURE)
 5. Any conventions you want enforced? (naming, patterns, linting)
 6. What's the first feature to build?
 
-Use answers to populate PROJECT_NAME, VERIFY_CMD, STACK, ARCHITECTURE, CONVENTIONS, and generate initial tasks.
+Use answers to populate PROJECT_NAME, VERIFY_STEPS, STACK, ARCHITECTURE, CONVENTIONS, and generate initial tasks.
 
 **If existing repo**: Confirm detected settings with the user:
-- "I detected [Node.js + Jest]. Verify command: `npm test`. Correct?"
+- "I detected [Node.js + Jest + ESLint + TypeScript]. Verification steps: 1) lint, 2) typecheck, 3) test. Correct? Any steps to add/remove?"
 - Ask for PROJECT_NAME if not obvious from package.json
 
 **If upgrade mode**: Report what will be updated:
@@ -98,11 +98,24 @@ Create the `.codestudio/` directory with all harness files.
 2. **`.codestudio/codestudio-instructions.md`** — from `codestudio-instructions.md.tmpl`
    Replace template variables:
    - `{{PROJECT_NAME}}` → detected or user-provided name
-   - `{{VERIFY_CMD}}` → detected or user-provided command
    
    Add security and UI notes if flags were detected (see detection-rules.md).
    
-   Remove references to skills that are not installed at `~/.agents/skills/<name>/SKILL.md`.
+   **Verify required skills exist.** Check that all mandatory skills are present at `~/.agents/skills/<name>/SKILL.md`:
+   - `spec-driven-development`
+   - `planning-and-task-breakdown`
+   - `test-driven-development`
+   - `incremental-implementation`
+   - `debugging-and-error-recovery`
+   - `code-review-and-quality`
+   - `security-and-hardening`
+   - `git-workflow-and-versioning`
+   - `frontend-ui-engineering` (if UI_PROJECT is true)
+   
+   If any required skill is missing, warn the user:
+   > "⚠️ Missing required skills: [list]. The harness expects these for full loop operation. Install them or acknowledge degraded mode."
+   
+   Keep all skill references in the generated instructions regardless — the agent will fall back to inline guidance if a skill file is absent at runtime.
 
 3. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
    Empty array for new projects. **Preserve existing if upgrade mode.**
@@ -117,16 +130,20 @@ Create the `.codestudio/` directory with all harness files.
    - `{{ARCHITECTURE}}` → detected/provided structure (e.g., "API routes → Services → Repositories")
    - `{{CONVENTIONS}}` → detected/provided patterns (e.g., "kebab-case files, Zod validation at boundaries")
    - `{{BOUNDARIES}}` → detected/provided constraints (e.g., "Don't modify: migrations/, .env")
+   - `{{VERIFY_STEPS}}` → numbered verification steps detected from the project (see detection-rules.md)
+   
+   Example VERIFY_STEPS for a Next.js + TypeScript + Jest + Playwright project:
+   ```
+   1. **Lint**: `npx eslint .` — code style and static analysis
+   2. **Typecheck**: `npx tsc --noEmit` — type safety
+   3. **Test**: `npx jest` — unit and integration tests
+   4. **E2E Tests**: `npx playwright test` — end-to-end tests
+   5. **Build**: `npm run build` — compilation succeeds
+   ```
    
    For existing repos: populate from scan findings (source files, directory structure, configs).
    For empty repos: populate from interview answers.
    **Preserve existing if upgrade mode** — user may have customized it.
-
-#### Conditionally generate:
-
-5. **`.codestudio/reviewer.agent.md`** — from `reviewer.agent.md.tmpl`
-   Only if: source file count > 10, or security flags detected.
-   Remove references to unavailable skills.
 
 ### Upgrade mode behavior:
 
@@ -134,7 +151,7 @@ Create the `.codestudio/` directory with all harness files.
 |------|--------|
 | `task.py` | Overwrite (latest version) |
 | `codestudio-instructions.md` | Overwrite (re-detect settings) |
-| `reviewer.agent.md` | Overwrite if applicable |
+
 | `project-context.md` | **PRESERVE** (user may have customized) |
 | `tasks/index.json` | **PRESERVE** |
 | `tasks/*.md` | **PRESERVE** |
@@ -166,7 +183,7 @@ python3 .codestudio/task.py status
 Expected output: PROJECT STATUS with counts. If tasks were seeded, they should appear.
 
 Also verify:
-- `codestudio-instructions.md` has correct verify command
+- `project-context.md` has correct verification steps
 - `task.py` is executable (suggest `chmod +x .codestudio/task.py` on Unix)
 - `.codestudio/` is in `.gitignore` (or not, depending on team preference — ask user)
 
@@ -180,8 +197,6 @@ Harness created at .codestudio/
   ├── project-context.md — stack, architecture, conventions, boundaries
   ├── tasks/index.json  — task index (N tasks seeded)
   ├── progress.md       — session memory
-  └── reviewer.agent.md — code reviewer (if generated)
-
 Detected: [language], verify: [command]
 Skills available: [list of installed skills]
 

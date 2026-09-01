@@ -19,7 +19,7 @@ The harness operates as a continuous loop over a task list using an **orchestrat
 │    │    │  SUB-AGENT (fresh context) │              │
 │    │    │  • Full context window     │              │
 │    │    │  • Implements ## Plan      │              │
-│    │    │  • Runs verify command     │              │
+│    │    │  • Runs verify steps      │              │
 │    │    │  • Returns DONE or BLOCKED │              │
 │    │    └─────────────┬──────────────┘              │
 │    │                  │                             │
@@ -72,16 +72,16 @@ Define what to build. For complex tasks, write a structured specification with a
 Break the work into subtask checkboxes in `## Plan`. Each subtask should be completable in a single commit. Order by dependency. Skip for trivial tasks.
 
 ### BUILD
-Implement one subtask at a time. Check the box when done. Write tests alongside or before code (TDD). This is where the bulk of agent work happens.
+Implement one subtask at a time. Check the box when done. Follow `test-driven-development` skill (RED → GREEN → REFACTOR) and `incremental-implementation` skill for multi-file changes. This is where the bulk of agent work happens.
 
 ### VERIFY
-Run the project's verification command (tests, lint, type-check). All checks must pass. On failure: fix, retry, max 3 attempts, then BLOCK the task.
+Run the project's verification command (tests, lint, type-check). All checks must pass. On failure: follow `debugging-and-error-recovery` skill, fix, retry, max 3 attempts, then BLOCK the task.
 
 ### REVIEW
-Self-review or delegate to the reviewer agent. Check correctness, security, maintainability. Write findings in `## Review`. If issues found: fix and re-review.
+Follow `code-review-and-quality` skill for a structured 5-axis review. For tasks touching auth, user data, or APIs, also follow `security-and-hardening` skill. Write findings in `## Review`. If issues found: fix and re-review.
 
 ### COMMIT
-Atomic commit with conventional message format. One subtask = one commit. Keep the git history clean and bisectable.
+Follow `git-workflow-and-versioning` skill. Atomic commit with conventional message format. One subtask = one commit. Keep the git history clean and bisectable.
 
 ### LEARN
 Record what happened: decisions, problems, solutions. Write to `## Log` in the task file and append to `progress.md`. This creates memory across sessions.
@@ -115,7 +115,7 @@ The orchestrator adds these tasks and the loop picks them up naturally.
 The project is complete when ALL of:
 1. All `todo` tasks are `done`
 2. All `backlog` items evaluated (promoted or deliberately skipped)
-3. Verify command passes on the full project
+3. All verification steps pass on the full project
 4. The original goals (from first task spec or progress.md) are satisfied
 
 The orchestrator writes a final entry in progress.md:

@@ -22,8 +22,7 @@ your-project/
     ├── project-context.md         # Stack, architecture, conventions, boundaries
     ├── tasks/
     │   └── index.json             # Task index (agent never edits directly)
-    ├── progress.md                # Session memory across conversations
-    └── reviewer.agent.md          # Read-only code reviewer (if >10 files)
+    └── progress.md                # Session memory across conversations
 ```
 
 ## The Loop
@@ -44,7 +43,7 @@ PICK → SPEC → PLAN → BUILD (sub-agent) → VERIFY → REVIEW → COMMIT �
 | **PLAN** | Orchestrator | Break into subtask checkboxes |
 | **BUILD** | **Sub-agent** | Implement subtasks, run tests — fresh context per task |
 | **VERIFY** | Sub-agent | Run project tests. Max 3 retries, then report blocked |
-| **REVIEW** | Orchestrator | Self-review or delegate to reviewer agent |
+| **REVIEW** | Orchestrator | Self-review using code-review-and-quality skill |
 | **COMMIT** | Orchestrator | Atomic commit with conventional message |
 | **LEARN** | Orchestrator | Log decisions and update progress.md |
 | **NEXT** | Orchestrator | Loop back to PICK |
@@ -154,7 +153,7 @@ python3 .codestudio/task.py info T-001        # task details
 
 ## SDLC Skill Integration
 
-The harness optionally leverages 14 SDLC skills if installed at `~/.agents/skills/`:
+The harness requires SDLC skills installed at `~/.agents/skills/`. Each stage has mandatory skills the agent reads and follows:
 
 | Stage | Skill | When |
 |-------|-------|------|
@@ -166,7 +165,7 @@ The harness optionally leverages 14 SDLC skills if installed at `~/.agents/skill
 | COMMIT | `git-workflow-and-versioning` | Always |
 | UI | `frontend-ui-engineering` | UI tasks |
 
-Skills are **optional enhancers** — the harness works standalone without any of them.
+Skills are **mandatory** — the agent reads each skill's SKILL.md at the corresponding stage. Missing skills trigger a warning during harness generation.
 
 The SDLC skills come from [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills). Install them with:
 
@@ -186,7 +185,7 @@ git clone https://github.com/addyosmani/agent-skills.git ~/.agents/skills
 
 The skill detects project characteristics from manifest files:
 
-| Signal | Language | Default Verify Command |
+| Signal | Language | Default Verify Steps |
 |--------|----------|----------------------|
 | `package.json` | Node.js | `npm test` |
 | `requirements.txt` | Python | `pytest` |
@@ -238,7 +237,7 @@ python3 .codestudio/task.py next
     ├── project-context.md.tmpl           # Project context template
     ├── index.json.tmpl                   # Empty task index
     ├── progress.md.tmpl                  # Session memory template
-    └── reviewer.agent.md.tmpl            # Reviewer agent template
+
 ```
 
 ## License

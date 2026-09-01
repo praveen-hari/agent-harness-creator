@@ -1,8 +1,8 @@
 # Stages Catalog — Skill Mapping
 
-Each loop stage can optionally leverage an installed SDLC skill. Skills are enhancers — if not installed, the agent follows inline guidance from `codestudio-instructions.md`. If installed, the agent reads the skill's `SKILL.md` for deeper process guidance.
+Each loop stage has **mandatory** skills that the agent MUST read and follow. Skills are not optional enhancers — they are required process steps. The agent reads each skill's `SKILL.md` at the corresponding stage and follows its instructions.
 
-Skills live in `~/.agents/skills/<name>/SKILL.md`.
+Skills live at `~/.agents/skills/<name>/SKILL.md`.
 
 ## Stage → Skill Mapping
 
@@ -31,15 +31,15 @@ These activate based on what the task touches, not the loop stage:
 
 ## How Skills Are Invoked
 
-The `codestudio-instructions.md` template names each skill at the relevant stage:
+The `codestudio-instructions.md` template names each skill at the relevant stage with its full path:
 
 ```markdown
 ### 4. BUILD
 ...
-If the `test-driven-development` skill is available, follow it: RED → GREEN → REFACTOR.
+Read and follow `~/.agents/skills/test-driven-development/SKILL.md`: RED → GREEN → REFACTOR.
 ```
 
-The agent checks if the skill file exists. If it does, the agent reads it and follows its instructions. If not, the inline guidance in the instructions file is sufficient.
+The agent reads the skill file using `read_file` and follows its instructions. Skills are mandatory — the agent must not skip them or rely on prior knowledge of their content.
 
 ## Skill Detection
 
@@ -50,18 +50,8 @@ During harness generation, the skill detects installed skills by checking:
 
 This determines:
 1. Which skill references to include in `codestudio-instructions.md`
-2. Whether to generate the `reviewer.agent.md` (needs `code-review-and-quality`)
-3. Which context hints to add in task file templates
+2. Which context hints to add in task file templates
 
-## Without Any Skills
+## Without Skills Installed
 
-The harness works standalone. The loop protocol provides enough inline guidance for:
-- Basic spec writing (describe what and why)
-- Simple planning (checkbox subtasks)
-- Standard building (one change at a time)
-- Verification (run tests, fix failures)
-- Self-review (5-point checklist)
-- Conventional commits
-- Learning (log decisions)
-
-Skills upgrade the quality of each stage, but are never required.
+If a skill file does not exist at the expected path, the agent falls back to the inline guidance in `codestudio-instructions.md` for that stage. However, this is a degraded mode — the harness-creator should ensure all required skills are present during generation (Step 2 — INTERVIEW) and warn the user if any are missing.
