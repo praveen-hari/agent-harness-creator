@@ -1,6 +1,7 @@
 ---
 name: harness-creator
-description: Scans any repository and generates a tailored agent harness with a loop-based task protocol. Works on empty repos (interview mode), existing repos (auto-detection), and re-runs safely (upgrade mode).
+description: 'Set up a .codestudio/ agent harness for any project. Use when: "set up harness", "bootstrap project", "initialize tasks", "create task management", onboarding a codebase, or starting a new project. Scans repos to auto-detect stack, generates loop protocol, seeds tasks. Works on empty repos (interview mode), existing repos (auto-detection), and re-runs safely (upgrade mode).'
+argument-hint: 'Optional: path to the project root to scaffold'
 ---
 
 # Harness Creator
@@ -20,7 +21,7 @@ Generate a `.codestudio/` harness that turns any project into an agent-friendly 
 Scan the repository to detect project characteristics. Read the reference document for detection rules:
 
 ```
-read_file: ~/.agents/skills/harness-creator/references/detection-rules.md
+read_file: ./references/detection-rules.md
 ```
 
 Then inspect the project root:
@@ -85,7 +86,7 @@ Create the `.codestudio/` directory with all harness files.
 
 ### Read templates from:
 ```
-~/.agents/skills/harness-creator/templates/
+./templates/
 ```
 
 ### Files to generate:
@@ -207,6 +208,6 @@ To start working: Run `python3 .codestudio/task.py next`
 
 For detailed information on specific aspects:
 
-- **Loop protocol**: `~/.agents/skills/harness-creator/references/loop-protocol.md` — how the 9-stage loop works, task state machine, constraints
-- **Stages catalog**: `~/.agents/skills/harness-creator/references/stages-catalog.md` — which SDLC skills map to which stages
-- **Detection rules**: `~/.agents/skills/harness-creator/references/detection-rules.md` — how repo scanning works, signal-to-config mapping
+- **Loop protocol**: `./references/loop-protocol.md` — how the 9-stage loop works, task state machine, constraints
+- **Stages catalog**: `./references/stages-catalog.md` — which SDLC skills map to which stages
+- **Detection rules**: `./references/detection-rules.md` — how repo scanning works, signal-to-config mapping
