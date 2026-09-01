@@ -96,35 +96,32 @@ Create the `.codestudio/` directory with all harness files.
 1. **`.codestudio/task.py`** — from `task.py.tmpl`
    Copy as-is. This is the task manager script.
 
-2. **`.codestudio/codestudio-instructions.md`** — from `codestudio-instructions.md.tmpl`
-   Replace template variables:
-   - `{{PROJECT_NAME}}` → detected or user-provided name
-   
+2. **`.codestudio/agents/orchestrator.agent.md`** — from `orchestrator.agent.md.tmpl`
+   This is the loop protocol as a custom agent. Replace `{{PROJECT_NAME}}`.
    Add security and UI notes if flags were detected (see detection-rules.md).
    
-   **Verify required skills exist.** Check that all mandatory skills are present at `~/.agents/skills/<name>/SKILL.md`:
-   - `spec-driven-development`
-   - `planning-and-task-breakdown`
-   - `test-driven-development`
-   - `incremental-implementation`
-   - `debugging-and-error-recovery`
-   - `code-review-and-quality`
-   - `security-and-hardening`
-   - `git-workflow-and-versioning`
+   **Does NOT touch any existing `codestudio-instructions.md`.** The harness uses the agents/ folder,
+   so projects with their own workspace instructions are unaffected.
+
+3. **`.codestudio/instructions/task-conventions.instructions.md`** — from `task-conventions.instructions.md.tmpl`
+   Replace `{{PROJECT_NAME}}`. Loaded on-demand when working on tasks.
+
+**Verify required skills exist.** Check that all mandatory skills are present at `~/.agents/skills/<name>/SKILL.md`:
+   - `spec-driven-development`, `planning-and-task-breakdown`, `test-driven-development`
+   - `incremental-implementation`, `debugging-and-error-recovery`, `code-review-and-quality`
+   - `security-and-hardening`, `git-workflow-and-versioning`
    - `frontend-ui-engineering` (if UI_PROJECT is true)
    
    If any required skill is missing, warn the user:
-   > "⚠️ Missing required skills: [list]. The harness expects these for full loop operation. Install them or acknowledge degraded mode."
-   
-   Keep all skill references in the generated instructions regardless — the agent will fall back to inline guidance if a skill file is absent at runtime.
+   > "⚠️ Missing required skills: [list]. The harness expects these for full loop operation."
 
-3. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
+4. **`.codestudio/tasks/index.json`** — from `index.json.tmpl`
    Empty array for new projects. **Preserve existing if upgrade mode.**
 
-4. **`.codestudio/progress.md`** — from `progress.md.tmpl`
+5. **`.codestudio/progress.md`** — from `progress.md.tmpl`
    Replace `{{PROJECT_NAME}}`. **Preserve existing if upgrade mode.**
 
-5. **`.codestudio/project-context.md`** — from `project-context.md.tmpl`
+6. **`.codestudio/project-context.md`** — from `project-context.md.tmpl`
    Replace template variables:
    - `{{PROJECT_NAME}}` → project name
    - `{{STACK}}` → detected/provided tech stack (e.g., "Next.js 14, TypeScript, Prisma, PostgreSQL")
@@ -151,8 +148,8 @@ Create the `.codestudio/` directory with all harness files.
 | File | Action |
 |------|--------|
 | `task.py` | Overwrite (latest version) |
-| `codestudio-instructions.md` | Overwrite (re-detect settings) |
-
+| `agents/orchestrator.agent.md` | Overwrite (re-detect settings) |
+| `instructions/task-conventions.instructions.md` | Overwrite |
 | `project-context.md` | **PRESERVE** (user may have customized) |
 | `tasks/index.json` | **PRESERVE** |
 | `tasks/*.md` | **PRESERVE** |
@@ -193,15 +190,19 @@ Also verify:
 After generation, report:
 ```
 Harness created at .codestudio/
-  ├── task.py           — task manager (11 commands)
-  ├── codestudio-instructions.md — loop protocol for {{PROJECT_NAME}}
-  ├── project-context.md — stack, architecture, conventions, boundaries
-  ├── tasks/index.json  — task index (N tasks seeded)
-  ├── progress.md       — session memory
-Detected: [language], verify: [command]
+  ├── task.py                    — task manager (11 commands)
+  ├── agents/
+  │   └── orchestrator.agent.md  — loop protocol (@orchestrator)
+  ├── instructions/
+  │   └── task-conventions.instructions.md — task file format, commits
+  ├── project-context.md         — stack, architecture, conventions, verification
+  ├── tasks/index.json           — task index (N tasks seeded)
+  └── progress.md                — session memory
+
+Detected: [language], verification steps: [list]
 Skills available: [list of installed skills]
 
-To start working: Run `python3 .codestudio/task.py next`
+To start working: Invoke @orchestrator or run `python3 .codestudio/task.py next`
 ```
 
 ## Reference Documents

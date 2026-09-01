@@ -86,7 +86,7 @@ Scan source files for patterns that indicate security-sensitive code:
 | `.env` file present | Note: "Secrets management in use. Verify .gitignore." |
 | `api/`, `routes/`, `endpoints/` directories | Flag: "API endpoints → validate input at boundaries." |
 
-Security flags add this to `codestudio-instructions.md`:
+Security flags add this to `agents/orchestrator.agent.md`:
 ```
 Security Note: This project handles [auth/tokens/encryption]. The `security-and-hardening` skill should be used during REVIEW for any task that touches these areas.
 ```
@@ -99,7 +99,7 @@ Security Note: This project handles [auth/tokens/encryption]. The `security-and-
 | `components/`, `pages/`, `views/` directories | Flag UI structure |
 | CSS/SCSS/Tailwind config present | Note styling framework |
 
-UI flags add this to `codestudio-instructions.md`:
+UI flags add this to `agents/orchestrator.agent.md`:
 ```
 UI Note: This project has frontend components. Use `frontend-ui-engineering` skill for any task touching UI.
 ```
@@ -161,5 +161,5 @@ When no source files are detected:
 
 When `.codestudio/` already exists:
 1. Preserve: `tasks/`, `progress.md`, `archive/`
-2. Update: `task.py`, `codestudio-instructions.md`
+2. Update: `task.py`, `agents/orchestrator.agent.md`, `instructions/task-conventions.instructions.md`
 3. Report: what was updated vs preserved

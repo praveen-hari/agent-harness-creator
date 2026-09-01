@@ -1,0 +1,52 @@
+---
+description: "Use when: working on tasks, writing specs, planning subtasks, reviewing code, committing changes, or managing task files in .codestudio/tasks/. Covers task file format, commit conventions, and review checklist for {{PROJECT_NAME}}."
+---
+
+# Task Conventions
+
+## Task File Format
+
+Task files live at `.codestudio/tasks/<ID>.md`. Each task file can contain these sections:
+
+### ## What
+Acceptance criteria — what to build, scope boundaries, and testable statements.
+
+### ## Plan
+Subtask checkboxes ordered by dependency. Each subtask should be completable in one commit.
+
+### ## Review
+Review findings after implementation. Use the 5-point checklist:
+- Does the code match ## What?
+- Are there obvious bugs, missing edge cases, or untested paths?
+- Is user input sanitized? Are secrets hardcoded? Is auth enforced?
+- Does it follow existing project patterns?
+- Are tests covering the acceptance criteria?
+
+### ## Log
+Decisions made, problems hit, what worked. Written after task completion for future session context.
+
+## Commit Format
+
+Atomic commits with conventional messages: `type(scope): description`
+
+Types: `feat`, `fix`, `test`, `refactor`, `docs`, `chore`, `ci`, `style`, `perf`
+
+Examples:
+- `feat(auth): add password reset endpoint`
+- `fix(header): constrain width on mobile`
+- `test(auth): add reset token expiry tests`
+
+## Task Commands
+
+```
+python3 .codestudio/task.py next              # get next task
+python3 .codestudio/task.py done              # mark complete
+python3 .codestudio/task.py block "reason"    # can't proceed
+python3 .codestudio/task.py unblock T-XXX     # try again
+python3 .codestudio/task.py review            # submit for review
+python3 .codestudio/task.py approve           # review passed
+python3 .codestudio/task.py reject            # review failed
+python3 .codestudio/task.py add "title"       # new task
+python3 .codestudio/task.py status            # project summary
+python3 .codestudio/task.py archive           # clean up done tasks
+```

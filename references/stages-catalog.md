@@ -31,7 +31,7 @@ These activate based on what the task touches, not the loop stage:
 
 ## How Skills Are Invoked
 
-The `codestudio-instructions.md` template names each skill at the relevant stage with its full path:
+The `orchestrator.agent.md` template names each skill at the relevant stage with its full path:
 
 ```markdown
 ### 4. BUILD
@@ -49,9 +49,9 @@ During harness generation, the skill detects installed skills by checking:
 ```
 
 This determines:
-1. Which skill references to include in `codestudio-instructions.md`
+1. Which skill references to include in `orchestrator.agent.md`
 2. Which context hints to add in task file templates
 
 ## Without Skills Installed
 
-If a skill file does not exist at the expected path, the agent falls back to the inline guidance in `codestudio-instructions.md` for that stage. However, this is a degraded mode — the harness-creator should ensure all required skills are present during generation (Step 2 — INTERVIEW) and warn the user if any are missing.
+If a skill file does not exist at the expected path, the agent falls back to the inline guidance in `orchestrator.agent.md` for that stage. However, this is a degraded mode — the harness-creator should ensure all required skills are present during generation (Step 2 — INTERVIEW) and warn the user if any are missing.

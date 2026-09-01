@@ -18,8 +18,11 @@ Point it at any repo and it will:
 your-project/
 └── .codestudio/
     ├── task.py                    # Task manager script (11 commands)
-    ├── codestudio-instructions.md # 9-stage loop protocol
-    ├── project-context.md         # Stack, architecture, conventions, boundaries
+    ├── agents/
+    │   └── orchestrator.agent.md  # 9-stage loop protocol (@orchestrator)
+    ├── instructions/
+    │   └── task-conventions.instructions.md  # Task format, commits
+    ├── project-context.md         # Stack, architecture, conventions, verification
     ├── tasks/
     │   └── index.json             # Task index (agent never edits directly)
     └── progress.md                # Session memory across conversations
@@ -233,7 +236,8 @@ python3 .codestudio/task.py next
 │   └── detection-rules.md                # Repo scanning logic
 └── templates/
     ├── task.py.tmpl                      # Task manager script
-    ├── codestudio-instructions.md.tmpl   # Loop protocol template
+    ├── orchestrator.agent.md.tmpl        # Loop protocol agent template
+    ├── task-conventions.instructions.md.tmpl  # Task conventions template
     ├── project-context.md.tmpl           # Project context template
     ├── index.json.tmpl                   # Empty task index
     ├── progress.md.tmpl                  # Session memory template
